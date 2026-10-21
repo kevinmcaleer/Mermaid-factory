@@ -25,9 +25,7 @@ on a plain directory you can back up from outside the container.
 ```sh
 git clone https://github.com/kevinmcaleer/mermaid-factory.git
 cd mermaid-factory
-cp .env.example .env
-# Put a long random value in SECRET_KEY:
-python3 -c "import secrets; print(secrets.token_urlsafe(48))"
+cp .env.example .env   # optional: every setting has a sensible default
 docker compose up -d --build
 ```
 
@@ -96,7 +94,7 @@ All settings are environment variables, normally set in `.env` (see `.env.exampl
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `SECRET_KEY` | *(required in Docker)* | Long random string used to sign CSRF tokens. The app refuses to start without it in production. |
+| `SECRET_KEY` | *(generated)* | Long random string used to sign CSRF tokens. If unset, one is generated on first start and kept in `./data/.secret_key`. |
 | `PORT` | `8000` | Port to listen on (and publish). |
 | `BIND_ADDRESS` | `0.0.0.0` | Host address the port is published on. Use `127.0.0.1` behind a local reverse proxy. |
 | `DATABASE_PATH` | `./data/mermaid.db` (`/data/mermaid.db` in Docker) | SQLite file. |
@@ -173,8 +171,8 @@ make check-templates   # renders every gallery template in headless Chromium
 ```
 
 Run `cd frontend && npm run watch` in another terminal to rebuild the browser bundle as
-you edit `frontend/src`. Without `SECRET_KEY`, development mode uses a random key, so you're
-logged out whenever the server restarts.
+you edit `frontend/src`. Without `SECRET_KEY`, a key is generated into
+`data/.secret_key`, just like in Docker.
 
 ## How it's built
 

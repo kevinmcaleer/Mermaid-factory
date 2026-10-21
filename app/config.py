@@ -13,6 +13,9 @@ from dataclasses import dataclass
 from pathlib import Path
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
+# Generated next to the database when SECRET_KEY isn't set, so a fresh
+# install works without any configuration and the key is backed up with ./data.
+SECRET_KEY_FILE = ".secret_key"  # noqa: S105 (a file name, not a secret)
 
 
 class ConfigError(RuntimeError):
@@ -32,6 +35,36 @@ def _int(name: str, value: str | None, default: int) -> int:
         return int(value)
     except ValueError as exc:
         raise ConfigError(f"{name} must be an integer, got {value!r}") from exc
+
+
+def _stored_secret_key(path: Path) -> str:
+    """Read the generated key from ``path``, creating it on first run."""
+    try:
+        key = path.read_text(encoding="utf-8").strip()
+        if key:
+            return key
+    except FileNotFoundError:
+        pass
+    except OSError as exc:
+        raise ConfigError(
+            f"SECRET_KEY is not set and {path} can't be read ({exc}). "
+            "Fix its permissions or set SECRET_KEY in your .env file."
+        ) from exc
+    key = secrets.token_urlsafe(48)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    except FileExistsError:
+        # Another process created it first; use theirs.
+        return path.read_text(encoding="utf-8").strip()
+    except OSError as exc:
+        raise ConfigError(
+            f"SECRET_KEY is not set and {path} can't be created ({exc}). Either make "
+            f"{path.parent} writable or set SECRET_KEY in your .env file."
+        ) from exc
+    with os.fdopen(fd, "w", encoding="utf-8") as fh:
+        fh.write(key + "\n")
+    return key
 
 
 @dataclass(frozen=True)
@@ -61,16 +94,10 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
     env = dict(os.environ if env is None else env)
     app_env = env.get("APP_ENV", "development").strip().lower()
 
+    database_path = Path(env.get("DATABASE_PATH", "./data/mermaid.db"))
     secret_key = env.get("SECRET_KEY", "").strip()
     if not secret_key:
-        if app_env == "production":
-            raise ConfigError(
-                "SECRET_KEY is not set. Generate one with\n"
-                '    python -c "import secrets; print(secrets.token_urlsafe(48))"\n'
-                "and put it in your .env file (see .env.example)."
-            )
-        # Development only: an ephemeral key means sessions reset on restart.
-        secret_key = secrets.token_urlsafe(48)
+        secret_key = _stored_secret_key(database_path.parent / SECRET_KEY_FILE)
     elif app_env == "production" and len(secret_key) < 32:
         raise ConfigError("SECRET_KEY must be at least 32 characters long.")
 
@@ -81,7 +108,7 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
     return Settings(
         app_env=app_env,
         secret_key=secret_key,
-        database_path=Path(env.get("DATABASE_PATH", "./data/mermaid.db")),
+        database_path=database_path,
         host=env.get("HOST", "127.0.0.1").strip() or "127.0.0.1",
         port=_int("PORT", env.get("PORT"), 8000),
         allow_registration=_bool(env.get("ALLOW_REGISTRATION"), True),
