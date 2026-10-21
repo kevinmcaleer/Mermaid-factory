@@ -1,0 +1,11 @@
+sequenceDiagram
+    autonumber
+    actor User
+    participant Browser
+    participant Server
+    User->>Browser: Types Mermaid code
+    Browser->>Browser: Renders preview
+    User->>Browser: Presses Ctrl+S
+    Browser->>+Server: PUT /api/diagrams/42
+    Server-->>-Browser: 200 OK
+    Note over Browser,Server: Saved to SQLite

@@ -1,0 +1,25 @@
+{% extends "base.html" %}
+{% block title %}{{ diagram.title }}{% endblock %}
+{% block main_class %}page page-wide{% endblock %}
+{% block content %}
+<div class="share-head">
+  <div>
+    <h1>{{ diagram.title }}</h1>
+    <p class="muted">{{ type_labels.get(diagram.diagram_type, diagram.diagram_type) }} diagram shared by {{ owner }} · read-only</p>
+  </div>
+  <div class="row">
+    <button type="button" class="btn" data-action="copy">Copy code</button>
+    <button type="button" class="btn" data-action="copy-md">Copy as Markdown</button>
+    <button type="button" class="btn" data-action="export">Download image…</button>
+  </div>
+</div>
+<div class="share-preview preview-surface" id="preview" aria-label="Rendered diagram"></div>
+<p id="render-error" class="alert alert-error" hidden></p>
+<details class="card" open>
+  <summary><strong>Mermaid source</strong></summary>
+  <pre class="source-block"><code>{{ diagram.source }}</code></pre>
+</details>
+{% include "_export_dialog.html" %}
+<script type="application/json" id="diagram-data">{{ diagram | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ static_url('build/share.js') }}"></script>{% endblock %}

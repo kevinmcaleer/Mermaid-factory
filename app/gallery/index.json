@@ -1,0 +1,206 @@
+[
+  {
+    "slug": "flowchart",
+    "name": "Flowchart",
+    "description": "Boxes and arrows for processes, decisions and workflows.",
+    "file": "flowchart.mmd",
+    "docs": "https://mermaid.js.org/syntax/flowchart.html"
+  },
+  {
+    "slug": "sequence",
+    "name": "Sequence diagram",
+    "description": "Messages exchanged between participants over time.",
+    "file": "sequence.mmd",
+    "docs": "https://mermaid.js.org/syntax/sequenceDiagram.html"
+  },
+  {
+    "slug": "class",
+    "name": "Class diagram",
+    "description": "Classes, attributes, methods and their relationships.",
+    "file": "class.mmd",
+    "docs": "https://mermaid.js.org/syntax/classDiagram.html"
+  },
+  {
+    "slug": "state",
+    "name": "State diagram",
+    "description": "States and the transitions between them.",
+    "file": "state.mmd",
+    "docs": "https://mermaid.js.org/syntax/stateDiagram.html"
+  },
+  {
+    "slug": "er",
+    "name": "Entity relationship",
+    "description": "Database tables and how they relate.",
+    "file": "er.mmd",
+    "docs": "https://mermaid.js.org/syntax/entityRelationshipDiagram.html"
+  },
+  {
+    "slug": "journey",
+    "name": "User journey",
+    "description": "Steps a user takes and how they feel at each one.",
+    "file": "journey.mmd",
+    "docs": "https://mermaid.js.org/syntax/userJourney.html"
+  },
+  {
+    "slug": "gantt",
+    "name": "Gantt chart",
+    "description": "Project schedule with tasks, durations and dependencies.",
+    "file": "gantt.mmd",
+    "docs": "https://mermaid.js.org/syntax/gantt.html"
+  },
+  {
+    "slug": "pie",
+    "name": "Pie chart",
+    "description": "Proportions of a whole.",
+    "file": "pie.mmd",
+    "docs": "https://mermaid.js.org/syntax/pie.html"
+  },
+  {
+    "slug": "quadrant",
+    "name": "Quadrant chart",
+    "description": "Plot items on two axes split into four quadrants.",
+    "file": "quadrant.mmd",
+    "docs": "https://mermaid.js.org/syntax/quadrantChart.html"
+  },
+  {
+    "slug": "requirement",
+    "name": "Requirement diagram",
+    "description": "Requirements and the elements that satisfy them.",
+    "file": "requirement.mmd",
+    "docs": "https://mermaid.js.org/syntax/requirementDiagram.html"
+  },
+  {
+    "slug": "gitgraph",
+    "name": "Git graph",
+    "description": "Commits, branches and merges.",
+    "file": "gitgraph.mmd",
+    "docs": "https://mermaid.js.org/syntax/gitgraph.html"
+  },
+  {
+    "slug": "c4",
+    "name": "C4 diagram",
+    "description": "Software architecture at context, container and component level.",
+    "file": "c4.mmd",
+    "docs": "https://mermaid.js.org/syntax/c4.html"
+  },
+  {
+    "slug": "mindmap",
+    "name": "Mindmap",
+    "description": "Ideas branching out from a central topic.",
+    "file": "mindmap.mmd",
+    "docs": "https://mermaid.js.org/syntax/mindmap.html"
+  },
+  {
+    "slug": "timeline",
+    "name": "Timeline",
+    "description": "Events in chronological order.",
+    "file": "timeline.mmd",
+    "docs": "https://mermaid.js.org/syntax/timeline.html"
+  },
+  {
+    "slug": "sankey",
+    "name": "Sankey diagram",
+    "description": "Flows between nodes, with width showing quantity.",
+    "file": "sankey.mmd",
+    "docs": "https://mermaid.js.org/syntax/sankey.html"
+  },
+  {
+    "slug": "xychart",
+    "name": "XY chart",
+    "description": "Bar and line charts on x and y axes.",
+    "file": "xychart.mmd",
+    "docs": "https://mermaid.js.org/syntax/xyChart.html"
+  },
+  {
+    "slug": "block",
+    "name": "Block diagram",
+    "description": "Blocks laid out on a grid, for system overviews.",
+    "file": "block.mmd",
+    "docs": "https://mermaid.js.org/syntax/block.html"
+  },
+  {
+    "slug": "packet",
+    "name": "Packet diagram",
+    "description": "Bit layout of a network packet or binary format.",
+    "file": "packet.mmd",
+    "docs": "https://mermaid.js.org/syntax/packet.html"
+  },
+  {
+    "slug": "kanban",
+    "name": "Kanban board",
+    "description": "Tasks in columns by status.",
+    "file": "kanban.mmd",
+    "docs": "https://mermaid.js.org/syntax/kanban.html"
+  },
+  {
+    "slug": "architecture",
+    "name": "Architecture diagram",
+    "description": "Services, groups and connections, with icons.",
+    "file": "architecture.mmd",
+    "docs": "https://mermaid.js.org/syntax/architecture.html",
+    "beta": true
+  },
+  {
+    "slug": "radar",
+    "name": "Radar chart",
+    "description": "Compare items across several axes.",
+    "file": "radar.mmd",
+    "docs": "https://mermaid.js.org/syntax/radar.html",
+    "beta": true
+  },
+  {
+    "slug": "treemap",
+    "name": "Treemap",
+    "description": "Nested rectangles sized by value.",
+    "file": "treemap.mmd",
+    "docs": "https://mermaid.js.org/syntax/treemap.html"
+  },
+  {
+    "slug": "venn",
+    "name": "Venn diagram",
+    "description": "Overlapping sets.",
+    "file": "venn.mmd",
+    "docs": "https://mermaid.js.org/syntax/venn.html",
+    "beta": true
+  },
+  {
+    "slug": "ishikawa",
+    "name": "Ishikawa (fishbone)",
+    "description": "Root-cause analysis of a problem.",
+    "file": "ishikawa.mmd",
+    "docs": "https://mermaid.js.org/syntax/ishikawa.html",
+    "beta": true
+  },
+  {
+    "slug": "wardley",
+    "name": "Wardley map",
+    "description": "Value chain against evolution.",
+    "file": "wardley.mmd",
+    "docs": "https://mermaid.js.org/syntax/wardley.html",
+    "beta": true
+  },
+  {
+    "slug": "railroad",
+    "name": "Railroad diagram",
+    "description": "Grammar rules drawn as syntax diagrams.",
+    "file": "railroad.mmd",
+    "docs": "https://mermaid.js.org/syntax/railroad.html",
+    "beta": true
+  },
+  {
+    "slug": "treeview",
+    "name": "Tree view",
+    "description": "A file or folder tree.",
+    "file": "treeview.mmd",
+    "docs": "https://mermaid.js.org/syntax/treeView.html",
+    "beta": true
+  },
+  {
+    "slug": "cynefin",
+    "name": "Cynefin",
+    "description": "Sense-making framework with five domains.",
+    "file": "cynefin.mmd",
+    "docs": "https://mermaid.js.org/syntax/cynefin.html",
+    "beta": true
+  }
+]

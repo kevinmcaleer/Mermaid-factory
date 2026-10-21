@@ -1,0 +1,13 @@
+gantt
+    title Robot build plan
+    dateFormat YYYY-MM-DD
+    section Design
+        Sketch chassis        :a1, 2026-01-05, 5d
+        CAD model             :a2, after a1, 7d
+    section Build
+        Print parts           :b1, after a2, 4d
+        Wire electronics      :b2, after a2, 6d
+        Assemble              :b3, after b1, 3d
+    section Software
+        Write firmware        :c1, after a2, 10d
+        Test and tune         :milestone, after b3, 0d

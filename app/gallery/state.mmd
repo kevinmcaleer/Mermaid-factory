@@ -1,0 +1,9 @@
+stateDiagram-v2
+    [*] --> Idle
+    Idle --> Editing : open diagram
+    Editing --> Saving : Ctrl+S
+    Saving --> Editing : saved
+    Saving --> Error : failed
+    Error --> Editing : retry
+    Editing --> Idle : close
+    Idle --> [*]

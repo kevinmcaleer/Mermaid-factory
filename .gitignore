@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Runtime data: the database lives here (bind-mounted in Docker)
+data/*
+!data/.gitkeep
+backups/*
+!backups/.gitkeep
+*.db
+*.db-wal
+*.db-shm
+
+# Config
+.env
+
+# Frontend
+frontend/node_modules/
+app/static/build/
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/

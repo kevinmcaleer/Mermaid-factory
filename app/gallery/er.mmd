@@ -1,0 +1,23 @@
+erDiagram
+    USER ||--o{ DIAGRAM : owns
+    DIAGRAM ||--o{ VERSION : "has history"
+    DIAGRAM }o--o{ TAG : "tagged with"
+    USER {
+        int id PK
+        string username
+        string password_hash
+    }
+    DIAGRAM {
+        int id PK
+        int user_id FK
+        string title
+        text source
+    }
+    VERSION {
+        int id PK
+        int diagram_id FK
+        text source
+    }
+    TAG {
+        string name
+    }

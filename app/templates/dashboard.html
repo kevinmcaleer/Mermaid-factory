@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Diagrams{% endblock %}
+{% block content %}
+<div class="dash-head">
+  <h1>Your diagrams <span class="muted" id="diagram-total"></span></h1>
+  <a href="/diagrams/new" class="btn btn-primary">New diagram</a>
+</div>
+<div class="filters">
+  <input type="search" id="search" placeholder="Search titles and code…" aria-label="Search diagrams" autocomplete="off">
+  <div class="chips" id="type-chips" role="group" aria-label="Filter by diagram type"></div>
+  <div class="chips" id="tag-chips" role="group" aria-label="Filter by tag"></div>
+</div>
+<div id="diagram-grid" class="grid" aria-live="polite"></div>
+<div id="empty-state" class="empty" hidden>
+  <h2>No diagrams yet</h2>
+  <p>Start from a template for any Mermaid diagram type, or a blank page.</p>
+  <a href="/diagrams/new" class="btn btn-primary">Create your first diagram</a>
+</div>
+<div id="no-results" class="empty" hidden><p>No diagrams match those filters.</p></div>
+<div class="center"><button type="button" id="load-more" class="btn" hidden>Load more</button></div>
+
+<template id="card-template">
+  <article class="dcard">
+    <a class="dcard-thumb" href="#" tabindex="-1" aria-hidden="true"><div class="thumb-inner"></div></a>
+    <div class="dcard-body">
+      <a class="dcard-title" href="#"></a>
+      <input class="dcard-rename" type="text" maxlength="200" aria-label="Diagram title" hidden>
+      <div class="dcard-meta">
+        <span class="badge"></span>
+        <span class="dcard-shared" title="Shared via public link" hidden>🔗</span>
+        <time></time>
+      </div>
+      <div class="dcard-tags"></div>
+    </div>
+    <details class="menu dcard-menu">
+      <summary class="btn btn-ghost btn-sm" aria-label="Diagram actions">⋯</summary>
+      <div class="menu-items">
+        <button type="button" data-action="open">Open</button>
+        <button type="button" data-action="rename">Rename</button>
+        <button type="button" data-action="duplicate">Duplicate</button>
+        <button type="button" data-action="copy">Copy code</button>
+        <button type="button" data-action="copy-md">Copy as Markdown</button>
+        <button type="button" data-action="delete" class="danger">Delete…</button>
+      </div>
+    </details>
+  </article>
+</template>
+
+{% include "_confirm_dialog.html" %}
+<script type="application/json" id="type-labels">{{ type_labels | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ static_url('build/dashboard.js') }}"></script>{% endblock %}

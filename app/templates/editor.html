@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}{{ diagram.title }}{% endblock %}
+{% block body_class %}editor-page{% endblock %}
+{% block main_class %}editor-main{% endblock %}
+{% block content %}
+<div class="editor-toolbar" role="toolbar" aria-label="Diagram actions">
+  <div class="title-wrap">
+    <span class="dirty-dot" id="dirty-indicator" title="Unsaved changes" hidden>●</span>
+    <input id="title" class="title-input" maxlength="200" aria-label="Diagram title" value="{{ diagram.title }}">
+    <span class="badge" id="type-badge"></span>
+  </div>
+  <div class="row toolbar-actions">
+    <label class="inline-label">Theme
+      <select id="theme-select" aria-label="Diagram theme">
+        {% for t in themes %}<option value="{{ t }}">{{ t }}</option>{% endfor %}
+      </select>
+    </label>
+    <button type="button" class="btn btn-sm" data-panel="style" aria-pressed="false">Style</button>
+    <button type="button" class="btn btn-sm" data-panel="reference" aria-pressed="false">Reference</button>
+    <button type="button" class="btn btn-sm" data-panel="history" aria-pressed="false">History</button>
+    <details class="menu">
+      <summary class="btn btn-sm">Export ▾</summary>
+      <div class="menu-items">
+        <button type="button" data-action="copy">Copy code</button>
+        <button type="button" data-action="copy-md">Copy as Markdown</button>
+        <button type="button" data-action="export">Download SVG / PNG…</button>
+        <button type="button" data-action="share">Share link…</button>
+      </div>
+    </details>
+    <details class="menu">
+      <summary class="btn btn-sm" aria-label="More actions">⋯</summary>
+      <div class="menu-items">
+        <button type="button" data-action="duplicate">Duplicate</button>
+        <button type="button" data-action="delete" class="danger">Delete…</button>
+      </div>
+    </details>
+    <button type="button" class="btn btn-primary btn-sm" id="save-btn" title="Save (Ctrl/⌘+S)">Save</button>
+  </div>
+</div>
+
+<div class="editor-split" id="split">
+  <section class="pane pane-code" aria-label="Mermaid code">
+    <div id="code-editor" class="code-editor"></div>
+  </section>
+  <div class="divider" id="divider" role="separator" aria-orientation="vertical" aria-label="Resize panes" tabindex="0"></div>
+  <section class="pane pane-preview" aria-label="Preview">
+    <div class="preview-tools" role="toolbar" aria-label="Zoom">
+      <button type="button" class="btn btn-ghost btn-sm" data-zoom="out" title="Zoom out" aria-label="Zoom out">−</button>
+      <span id="zoom-level" class="zoom-level">100%</span>
+      <button type="button" class="btn btn-ghost btn-sm" data-zoom="in" title="Zoom in" aria-label="Zoom in">+</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-zoom="fit" title="Fit to view">Fit</button>
+      <button type="button" class="btn btn-ghost btn-sm" data-zoom="reset" title="Actual size">100%</button>
+      <span class="muted small hint">Ctrl + wheel to zoom, drag to pan</span>
+    </div>
+    <div class="preview-viewport preview-surface" id="preview-viewport">
+      <div class="preview-canvas" id="preview-canvas"></div>
+      <div class="preview-empty muted" id="preview-empty" hidden>Type some Mermaid code to see the diagram here.</div>
+    </div>
+    <div class="error-strip" id="error-strip" role="alert" hidden></div>
+    <div class="note-strip" id="note-strip" hidden></div>
+  </section>
+
+  <aside class="side-panel" id="side-panel" hidden>
+    <div class="side-head">
+      <h2 id="side-title">Panel</h2>
+      <button type="button" class="btn btn-ghost btn-sm" id="side-close" aria-label="Close panel">✕</button>
+    </div>
+    <div class="side-body" data-panel-body="style" hidden>
+      <form id="style-form" class="form compact">
+        <label>Look
+          <select name="look"><option value="">Default</option><option value="classic">Classic</option><option value="handDrawn">Hand drawn</option><option value="neo">Neo</option></select>
+        </label>
+        <label>Layout engine
+          <select name="layout"><option value="">Default</option><option value="dagre">dagre</option><option value="elk">ELK</option></select>
+        </label>
+        <label>Flowchart direction
+          <select name="direction" id="direction-select"><option value="">(from code)</option><option value="TD">Top → down</option><option value="LR">Left → right</option><option value="BT">Bottom → top</option><option value="RL">Right → left</option></select>
+        </label>
+        <label>Edge curve
+          <select name="curve"><option value="">Default</option><option>basis</option><option>linear</option><option>cardinal</option><option>monotoneX</option><option>monotoneY</option><option>natural</option><option>step</option><option>stepBefore</option><option>stepAfter</option><option>bumpX</option><option>bumpY</option><option>catmullRom</option></select>
+        </label>
+        <label>Font family
+          <input name="fontFamily" list="font-list" placeholder="e.g. Comic Sans MS, sans-serif" maxlength="100">
+          <datalist id="font-list"><option value="trebuchet ms, verdana, arial, sans-serif"><option value="system-ui, sans-serif"><option value="Georgia, serif"><option value="Courier New, monospace"><option value="Comic Sans MS, cursive"></datalist>
+        </label>
+        <label>Tags <span class="muted">(comma separated)</span>
+          <input name="tags" id="tags-input" placeholder="work, robots" autocomplete="off">
+        </label>
+      </form>
+      <p class="muted small">These settings are saved with the diagram. An <code>%%{init}%%</code> directive or front-matter <code>config:</code> in the code takes priority.</p>
+    </div>
+    <div class="side-body" data-panel-body="reference" hidden>
+      <div class="row"><select id="cheatsheet-select" aria-label="Reference for diagram type"></select></div>
+      <div id="cheatsheet" class="cheatsheet"></div>
+    </div>
+    <div class="side-body" data-panel-body="history" hidden>
+      <p class="muted small">A version is kept each time the code, theme or style changes (last 50).</p>
+      <ol id="history-list" class="history-list" reversed></ol>
+    </div>
+  </aside>
+</div>
+
+<dialog id="share-dialog" class="dialog" aria-labelledby="share-title">
+  <form method="dialog" class="form">
+    <h2 id="share-title">Share a read-only link</h2>
+    <p class="muted">Anyone with the link can view this diagram and its code without logging in. They can't edit it.</p>
+    <div id="share-on" hidden>
+      <div class="row"><input id="share-url" readonly aria-label="Share link"><button type="button" class="btn" id="share-copy">Copy</button></div>
+      <p><button type="button" class="btn btn-danger" id="share-revoke">Revoke link</button></p>
+    </div>
+    <div id="share-off" hidden>
+      <button type="button" class="btn btn-primary" id="share-create">Create link</button>
+    </div>
+    <div class="row end"><button value="close" class="btn">Close</button></div>
+  </form>
+</dialog>
+<dialog id="draft-dialog" class="dialog" aria-labelledby="draft-title">
+  <form method="dialog">
+    <h2 id="draft-title">Restore unsaved changes?</h2>
+    <p>There are unsaved edits to this diagram from <span id="draft-when"></span>.</p>
+    <div class="row end">
+      <button value="discard" class="btn">Discard</button>
+      <button value="restore" class="btn btn-primary">Restore</button>
+    </div>
+  </form>
+</dialog>
+{% include "_export_dialog.html" %}
+{% include "_confirm_dialog.html" %}
+<script type="application/json" id="diagram-data">{{ diagram | tojson }}</script>
+<script type="application/json" id="type-labels">{{ type_labels | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ static_url('build/editor.js') }}"></script>{% endblock %}

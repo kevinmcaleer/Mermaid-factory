@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}New diagram{% endblock %}
+{% block content %}
+<div class="dash-head">
+  <h1>New diagram</h1>
+  <input type="search" id="gallery-search" placeholder="Filter types…" aria-label="Filter diagram types" autocomplete="off">
+</div>
+<p class="muted">Pick a starting point. Every template is a working snippet you can edit straight away.</p>
+<div class="grid gallery">
+  <a class="gcard gcard-blank" href="/diagrams/new/edit" data-name="blank">
+    <div class="gcard-thumb"><span class="blank-plus">+</span></div>
+    <div class="gcard-body"><h2>Blank</h2><p>Start from an empty editor.</p></div>
+  </a>
+  {% for t in templates %}
+  <a class="gcard" href="/diagrams/new/edit?template={{ t.slug | urlencode }}" data-name="{{ (t.name ~ ' ' ~ t.description) | lower }}">
+    <div class="gcard-thumb" data-slug="{{ t.slug }}"><div class="thumb-inner"><span class="spinner" aria-hidden="true"></span></div></div>
+    <div class="gcard-body">
+      <h2>{{ t.name }}{% if t.beta %} <span class="badge badge-beta">beta</span>{% endif %}</h2>
+      <p>{{ t.description }}</p>
+    </div>
+  </a>
+  {% endfor %}
+</div>
+<script type="application/json" id="gallery-data">{{ templates | tojson }}</script>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ static_url('build/gallery.js') }}"></script>{% endblock %}

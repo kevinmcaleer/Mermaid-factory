@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<div class="stack narrow-wide">
+  <h1>Settings</h1>
+  {% if message == "password-changed" %}<p class="alert alert-ok" role="status">Password changed. Other sessions were signed out.</p>{% endif %}
+
+  <section class="card">
+    <h2>Account</h2>
+    <p>Signed in as <strong>{{ user.username }}</strong>{% if user.email %} ({{ user.email }}){% endif %}.
+       You have {{ diagram_count }} saved diagram{{ '' if diagram_count == 1 else 's' }}.</p>
+  </section>
+
+  <section class="card">
+    <h2>Change password</h2>
+    {% if password_error %}<p class="alert alert-error" role="alert">{{ password_error }}</p>{% endif %}
+    <form method="post" action="/settings/password" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <input type="text" name="username" value="{{ user.username }}" autocomplete="username" hidden>
+      <label>Current password<input name="current_password" type="password" autocomplete="current-password" required></label>
+      <label>New password <span class="muted">(12+ characters)</span><input name="new_password" type="password" autocomplete="new-password" minlength="12" required></label>
+      <label>Confirm new password<input name="confirm_password" type="password" autocomplete="new-password" minlength="12" required></label>
+      <button class="btn btn-primary" type="submit">Change password</button>
+    </form>
+  </section>
+
+  <section class="card">
+    <h2>Export and import</h2>
+    <p>Download every diagram as one JSON file, or import a file exported from this or another Mermaid Factory server.</p>
+    <div class="row">
+      <a class="btn" href="/api/export" download>Export all diagrams</a>
+      <label class="btn">Import from file…<input type="file" id="import-file" accept="application/json,.json" hidden></label>
+    </div>
+    <p id="import-result" class="muted" role="status"></p>
+  </section>
+
+  <section class="card danger-zone">
+    <h2>Delete account</h2>
+    <p>This permanently deletes your account and all {{ diagram_count }} of your diagrams. It cannot be undone.</p>
+    {% if delete_error %}<p class="alert alert-error" role="alert">{{ delete_error }}</p>{% endif %}
+    <form method="post" action="/settings/delete" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Type <strong>{{ user.username }}</strong> to confirm
+        <input name="confirm_username" autocomplete="off" required>
+      </label>
+      <button class="btn btn-danger" type="submit">Delete my account</button>
+    </form>
+  </section>
+</div>
+{% endblock %}
+{% block scripts %}<script type="module" src="{{ static_url('build/settings.js') }}"></script>{% endblock %}
