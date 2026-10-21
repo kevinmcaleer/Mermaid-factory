@@ -1,0 +1,32 @@
+<dialog id="export-dialog" class="dialog" aria-labelledby="export-title">
+  <form method="dialog" class="form">
+    <h2 id="export-title">Download image</h2>
+    <label>Format
+      <select name="format">
+        <option value="svg">SVG (vector)</option>
+        <option value="png">PNG (bitmap)</option>
+      </select>
+    </label>
+    <label data-png-only>Scale
+      <select name="scale">
+        <option value="1">1x</option>
+        <option value="2" selected>2x</option>
+        <option value="4">4x</option>
+      </select>
+    </label>
+    <fieldset>
+      <legend>Background</legend>
+      <label class="check"><input type="radio" name="background" value="transparent" checked> Transparent</label>
+      <label class="check"><input type="radio" name="background" value="#ffffff"> White</label>
+      <label class="check"><input type="radio" name="background" value="custom"> Custom
+        <input type="color" name="background_color" value="#f5f5f5" aria-label="Custom background colour"></label>
+    </fieldset>
+    <label>File name
+      <input name="filename" required>
+    </label>
+    <div class="row end">
+      <button value="cancel" class="btn" formnovalidate>Cancel</button>
+      <button value="download" class="btn btn-primary">Download</button>
+    </div>
+  </form>
+</dialog>

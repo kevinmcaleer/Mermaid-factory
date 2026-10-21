@@ -1,0 +1,22 @@
+requirementDiagram
+
+    requirement storage_req {
+        id: 1
+        text: Store unlimited diagrams per user
+        risk: medium
+        verifymethod: test
+    }
+
+    functionalRequirement backup_req {
+        id: 1.1
+        text: Database lives on a mounted volume
+        risk: low
+        verifymethod: inspection
+    }
+
+    element sqlite_db {
+        type: database
+    }
+
+    sqlite_db - satisfies -> storage_req
+    backup_req - derives -> storage_req

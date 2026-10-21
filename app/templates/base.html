@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="csrf-token" content="{{ csrf_token }}">
+  <title>{% block title %}Mermaid Factory{% endblock %} · Mermaid Factory</title>
+  <link rel="icon" href="{{ static_url('img/favicon.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ static_url('css/app.css') }}">
+  <script src="{{ static_url('js/ui-theme.js') }}"></script>
+  {% block head %}{% endblock %}
+</head>
+<body class="{% block body_class %}{% endblock %}">
+  <header class="topbar">
+    <a class="brand" href="/">
+      <img src="{{ static_url('img/favicon.svg') }}" alt="" width="24" height="24">
+      <span>Mermaid Factory</span>
+    </a>
+    <nav class="topnav" aria-label="Main">
+      {% if current_user %}
+        <a href="/diagrams">Diagrams</a>
+        <a href="/diagrams/new" class="btn btn-primary btn-sm">New diagram</a>
+      {% endif %}
+      <button type="button" class="btn btn-ghost btn-sm" id="ui-theme-toggle" title="Toggle light/dark interface" aria-label="Toggle light or dark interface">◐</button>
+      {% if current_user %}
+        <details class="menu">
+          <summary class="btn btn-ghost btn-sm" aria-label="Account menu">{{ current_user.username }} ▾</summary>
+          <div class="menu-items">
+            <a href="/settings">Settings</a>
+            <form method="post" action="/logout">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+              <button type="submit">Log out</button>
+            </form>
+          </div>
+        </details>
+      {% endif %}
+    </nav>
+  </header>
+  <main class="{% block main_class %}page{% endblock %}">
+    {% block content %}{% endblock %}
+  </main>
+  <div id="toasts" class="toasts" role="status" aria-live="polite"></div>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "name": "mermaid-factory-frontend",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "check-templates": "node check-templates.mjs"
+  },
+  "dependencies": {
+    "@codemirror/commands": "6.11.1",
+    "@codemirror/language": "6.13.1",
+    "@codemirror/state": "6.7.6",
+    "@codemirror/view": "6.43.15",
+    "@lezer/highlight": "1.2.5",
+    "codemirror": "6.0.2",
+    "mermaid": "12.2.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

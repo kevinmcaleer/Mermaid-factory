@@ -1,0 +1,36 @@
+{% extends "base.html" %}
+{% block title %}Create account{% endblock %}
+{% block content %}
+<section class="card narrow">
+  {% if not registration_open %}
+    <h1>Registration disabled</h1>
+    <p>New accounts can't be created on this server. Ask the owner, or <a href="/login">log in</a>.</p>
+  {% else %}
+    <h1>{% if first_user %}Create the owner account{% else %}Create account{% endif %}</h1>
+    {% if first_user %}<p class="muted">This is a fresh install. The first account you create owns this server.</p>{% endif %}
+    {% if errors %}
+      <div class="alert alert-error" role="alert">
+        <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+      </div>
+    {% endif %}
+    <form method="post" action="/register" class="form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <label>Username
+        <input name="username" autocomplete="username" required minlength="3" maxlength="32"
+               pattern="[A-Za-z0-9_.\-]+" value="{{ form.username or '' }}" autofocus>
+      </label>
+      <label>Email <span class="muted">(optional)</span>
+        <input name="email" type="email" autocomplete="email" value="{{ form.email or '' }}">
+      </label>
+      <label>Password <span class="muted">(12+ characters)</span>
+        <input name="password" type="password" autocomplete="new-password" required minlength="12">
+      </label>
+      <label>Confirm password
+        <input name="confirm_password" type="password" autocomplete="new-password" required minlength="12">
+      </label>
+      <button class="btn btn-primary" type="submit">Create account</button>
+    </form>
+    <p class="muted">Already have an account? <a href="/login">Log in</a>.</p>
+  {% endif %}
+</section>
+{% endblock %}

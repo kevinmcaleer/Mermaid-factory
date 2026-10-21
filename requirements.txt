@@ -1,0 +1,8 @@
+# Runtime dependencies (pinned). Dependabot keeps these up to date.
+fastapi==0.156.5
+uvicorn[standard]==0.54.0
+jinja2==3.1.6
+itsdangerous==2.2.0
+python-multipart==0.0.32
+argon2-cffi==25.1.0
+markdown==3.11.2

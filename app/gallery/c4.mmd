@@ -1,0 +1,10 @@
+C4Context
+    title System context for Mermaid Factory
+    Person(user, "Diagram author", "Writes and stores Mermaid diagrams")
+    System(app, "Mermaid Factory", "Self-hosted editor with unlimited storage")
+    SystemDb_Ext(db, "SQLite file", "Lives on a host-mounted volume")
+    System_Ext(backup, "Backup job", "Copies the database nightly")
+
+    Rel(user, app, "Edits diagrams in", "HTTPS")
+    Rel(app, db, "Reads and writes")
+    Rel(backup, db, "Snapshots", "sqlite3 .backup")

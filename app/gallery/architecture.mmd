@@ -1,0 +1,11 @@
+architecture-beta
+    group home(cloud)[Home lab]
+
+    service proxy(internet)[Reverse proxy] in home
+    service app(server)[Mermaid Factory] in home
+    service db(database)[SQLite] in home
+    service disk(disk)[Backup disk] in home
+
+    proxy:R --> L:app
+    app:R --> L:db
+    db:B --> T:disk
