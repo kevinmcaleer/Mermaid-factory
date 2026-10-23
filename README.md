@@ -108,6 +108,8 @@ All settings are environment variables, normally set in `.env` (see `.env.exampl
 | `MAX_VERSIONS` | `50` | History entries kept per diagram. |
 | `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW` | `5` / `60` | Login and sign-up attempts allowed per IP per window (seconds). |
 | `HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface the server binds to. |
+| `COMPOSE_PROFILES` | *(empty)* | Set to `tunnel` to start the bundled `cloudflared` service. |
+| `CLOUDFLARE_TUNNEL_TOKEN` | *(empty)* | Token of a remotely-managed Cloudflare Tunnel (see below). |
 
 ## Running behind a reverse proxy (HTTPS)
 
@@ -151,6 +153,62 @@ location / {
 
 With `TRUST_PROXY=true` and `HTTPS=true`, cookies carry the `Secure` flag and redirects
 use `https://`.
+
+## Cloudflare Tunnel
+
+`docker-compose.yml` includes an optional `cloudflared` service that publishes the app at
+your own hostname (for example `mermaid.kevspowertools.com`) through Cloudflare. It makes an
+outbound connection only, so no ports need opening on your router and Cloudflare handles
+HTTPS.
+
+**1. Create the tunnel in Cloudflare** (one time):
+
+1. In the Cloudflare dashboard go to **Zero Trust → Networks → Tunnels → Create a tunnel**,
+   pick **Cloudflared**, and give it a name such as `mermaid-factory`.
+2. On the install step, copy the token: the long string after `--token` in any of the
+   install commands. You don't need to run the command itself.
+3. On the **Public Hostname** step (later under the tunnel's **Public Hostname** tab) add:
+   - Subdomain `mermaid`, domain `kevspowertools.com`
+   - Service type **HTTP**, URL **`mermaid-factory:8000`**
+
+   `mermaid-factory` is the app's service name in `docker-compose.yml`, which `cloudflared`
+   can reach over the compose network. Change the port if you changed `PORT`. Cloudflare
+   creates the DNS record for the hostname automatically.
+
+**2. Configure `.env`:**
+
+```ini
+COMPOSE_PROFILES=tunnel
+CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...   # the token from step 1
+HTTPS=true
+TRUST_PROXY=true
+BIND_ADDRESS=127.0.0.1   # optional: stop other machines reaching port 8000 directly
+```
+
+**3. Start it:** `docker compose up -d`. `docker compose ps` should show `cloudflared` as
+healthy once it has connected, and the tunnel shows as **Healthy** in the dashboard.
+`docker compose logs cloudflared` shows the connection details if it doesn't.
+
+Treat the token like a password: anyone with it can serve traffic for your hostname. If it
+leaks, rotate it from the tunnel's page in the dashboard.
+
+### Running on more than one node
+
+You can run the same `docker compose` setup, with the **same** tunnel token, on several
+machines. Each `cloudflared` registers as a replica of the one tunnel, and Cloudflare sends
+each request to whichever replica it chooses. That gives you failover for the tunnel.
+
+**But each node has its own SQLite database in its own `./data`.** Nothing is replicated
+between nodes, and Cloudflare doesn't keep a visitor on the same node. With two nodes live at
+once, a visitor can log in on one node and look logged out on the next request, and
+diagrams saved on one node won't appear on the other. So:
+
+- **Recommended:** serve the hostname from one node at a time. Keep the others as cold
+  standbys with `cloudflared` stopped (`docker compose stop cloudflared`, or leave
+  `COMPOSE_PROFILES` empty there). To fail over, restore the latest backup into the standby's
+  `./data` (see [Backup and restore](#backup-and-restore)) and start its `cloudflared`.
+- **Separate instances:** give each node its own tunnel and hostname (for example
+  `mermaid-pi.kevspowertools.com`) so each one is an independent server with its own data.
 
 ## Logs and health
 
