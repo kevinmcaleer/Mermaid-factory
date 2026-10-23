@@ -16,6 +16,7 @@ from . import __version__, auth, bundle, db, diagrams, gallery
 from .config import Settings, load_settings_or_exit
 from .deps import ANON_COOKIE, LoginRequired, login_redirect_url, verify_csrf
 from .logging_config import configure_logging
+from .powertools import PowerTools
 from .security import SECURITY_HEADERS, RateLimiter, new_token
 from .web import STATIC_DIR, render
 
@@ -44,6 +45,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = settings
     app.state.rate_limiter = RateLimiter(settings.login_rate_limit, settings.login_rate_window)
+    app.state.powertools = PowerTools(settings.powertools_apps_url)
 
     app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.include_router(auth.router)

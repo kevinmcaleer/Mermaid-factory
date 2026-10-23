@@ -84,6 +84,8 @@ class Settings:
     login_rate_limit: int
     login_rate_window: int
     reload: bool = False
+    # The landing page's shared app list for the switcher; empty keeps the bundled copy.
+    powertools_apps_url: str = "https://kevspowertools.com/apps.json"
 
     @property
     def is_production(self) -> bool:
@@ -123,6 +125,9 @@ def load_settings(env: dict[str, str] | None = None) -> Settings:
         login_rate_limit=_int("LOGIN_RATE_LIMIT", env.get("LOGIN_RATE_LIMIT"), 5),
         login_rate_window=_int("LOGIN_RATE_WINDOW", env.get("LOGIN_RATE_WINDOW"), 60),
         reload=_bool(env.get("RELOAD"), False),
+        powertools_apps_url=env.get(
+            "POWERTOOLS_APPS_URL", "https://kevspowertools.com/apps.json"
+        ).strip(),
     )
 
 

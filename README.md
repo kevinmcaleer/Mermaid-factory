@@ -108,6 +108,7 @@ All settings are environment variables, normally set in `.env` (see `.env.exampl
 | `MAX_VERSIONS` | `50` | History entries kept per diagram. |
 | `LOGIN_RATE_LIMIT` / `LOGIN_RATE_WINDOW` | `5` / `60` | Login and sign-up attempts allowed per IP per window (seconds). |
 | `HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface the server binds to. |
+| `POWERTOOLS_APPS_URL` | `https://kevspowertools.com/apps.json` | The shared list behind the app switcher (the grid button before the logo), read by the server at most every five minutes. Empty, unreachable or invalid, the switcher uses the copy in `app/powertools.json`. |
 | `COMPOSE_PROFILES` | *(empty)* | Set to `tunnel` to start the bundled `cloudflared` service. |
 | `CLOUDFLARE_TUNNEL_TOKEN` | *(empty)* | Token of a remotely-managed Cloudflare Tunnel (see below). |
 | `COMPOSE_FILE` | `docker-compose.yml` | Add `:docker-compose.tunnel.yml` to stop publishing the app's port on the host when using the tunnel. |
