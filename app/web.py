@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from functools import lru_cache
+from functools import cache
 from pathlib import Path
 from typing import Any
 
@@ -20,7 +20,7 @@ STATIC_DIR = BASE_DIR / "static"
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
-@lru_cache(maxsize=None)
+@cache
 def _asset_hash(path: str) -> str:
     try:
         return hashlib.sha256((STATIC_DIR / path).read_bytes()).hexdigest()[:12]
