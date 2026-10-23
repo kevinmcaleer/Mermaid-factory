@@ -9,6 +9,7 @@ import { mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { extname, join } from "node:path";
 import { createRequire } from "node:module";
+import { convertDiagram } from "./src/convert.js";
 
 const require = createRequire(import.meta.url);
 const root = new URL("../app/", import.meta.url).pathname;
@@ -35,14 +36,22 @@ async function collectCases() {
   const cases = [];
   const index = JSON.parse(await readFile(join(root, "gallery/index.json"), "utf8"));
   for (const t of index) {
-    cases.push({ name: `template ${t.slug}`, source: await readFile(join(root, "gallery", t.file), "utf8") });
+    cases.push({ name: `template ${t.slug}`, type: t.slug, source: await readFile(join(root, "gallery", t.file), "utf8") });
   }
   // Cheat-sheet code blocks marked ```mermaid are complete diagrams.
   for (const file of (await readdir(join(root, "cheatsheets"))).filter((f) => f.endsWith(".md"))) {
     const text = await readFile(join(root, "cheatsheets", file), "utf8");
     let n = 0;
     for (const m of text.matchAll(/```mermaid\n([\s\S]*?)```/g)) {
-      cases.push({ name: `cheatsheet ${file} #${++n}`, source: m[1] });
+      cases.push({ name: `cheatsheet ${file} #${++n}`, type: file.replace(/\.md$/, ""), source: m[1] });
+    }
+  }
+  // The type switcher's conversions of all of the above must render too.
+  const types = index.map((t) => t.slug);
+  for (const from of cases.slice()) {
+    for (const to of types) {
+      const out = convertDiagram(from.source, from.type, to);
+      if (out !== null) cases.push({ name: `${from.name} converted to ${to}`, source: out });
     }
   }
   return cases;
