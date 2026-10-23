@@ -29,6 +29,7 @@ import {
 } from "./render.js";
 import { PanZoom } from "./panzoom.js";
 import { setupExportDialog } from "./exporter.js";
+import { lazyThumb, thumbObserver } from "./thumbs.js";
 
 const $ = (sel) => document.querySelector(sel);
 const RENDER_DEBOUNCE_MS = 300;
@@ -258,8 +259,7 @@ function showError(err) {
 function updateTypeBadge() {
   const type = detectType(state.source);
   const badge = $("#type-badge");
-  badge.textContent = typeLabels[type] || type;
-  badge.hidden = type === "unknown";
+  badge.textContent = type === "unknown" ? "Choose type" : typeLabels[type] || type;
   return type;
 }
 
@@ -271,6 +271,84 @@ function updateInlineNote() {
     ? "This code sets its own config (an %%{init}%% directive or front-matter config:). Those values override the toolbar theme and Style panel."
     : "";
 }
+
+// ------------------------------------------------------------- change type
+
+const typeDialog = $("#type-dialog");
+const typeGrid = $("#type-grid");
+const typeSearch = $("#type-search");
+let typeTemplates = null;
+
+// Front matter (title, config) is kept when switching, unless the template brings its own.
+const FRONT_MATTER_RE = /^\s*---[ \t]*\r?\n[\s\S]*?\r?\n---[ \t]*(?:\r?\n|$)/;
+
+async function openTypeDialog() {
+  typeSearch.value = "";
+  filterTypes();
+  typeDialog.showModal();
+  if (!typeTemplates) {
+    try {
+      typeTemplates = (await api("GET", "/api/templates")).items;
+    } catch (err) {
+      typeGrid.textContent = err.message;
+      return;
+    }
+    buildTypeGrid();
+  }
+  const current = detectType(state.source);
+  typeGrid.querySelectorAll(".tcard").forEach((card) => card.setAttribute("aria-current", String(card.dataset.slug === current)));
+}
+
+function buildTypeGrid() {
+  const observer = thumbObserver();
+  typeGrid.innerHTML = "";
+  for (const t of typeTemplates) {
+    const card = document.createElement("button");
+    card.type = "button";
+    card.className = "tcard";
+    card.dataset.slug = t.slug;
+    card.dataset.name = `${t.name} ${t.description}`.toLowerCase();
+    card.title = t.description;
+    const thumb = document.createElement("div");
+    thumb.className = "thumb-inner";
+    thumb.innerHTML = '<span class="spinner" aria-hidden="true"></span>';
+    const name = document.createElement("span");
+    name.className = "tcard-name";
+    name.textContent = t.name;
+    card.append(thumb, name);
+    card.addEventListener("click", () => switchType(t));
+    typeGrid.append(card);
+    lazyThumb(observer, thumb, { source: t.source, theme: "default", config: {} });
+  }
+  filterTypes();
+}
+
+function filterTypes() {
+  const q = typeSearch.value.trim().toLowerCase();
+  typeGrid.querySelectorAll(".tcard").forEach((card) => {
+    card.hidden = q !== "" && !card.dataset.name.includes(q);
+  });
+}
+typeSearch.addEventListener("input", filterTypes);
+typeSearch.addEventListener("keydown", (e) => {
+  // Enter picks the only (or first) match instead of submitting the dialog.
+  if (e.key !== "Enter") return;
+  e.preventDefault();
+  typeGrid.querySelector(".tcard:not([hidden])")?.click();
+});
+
+function switchType(t) {
+  typeDialog.close();
+  const before = state.source;
+  const frontMatter = FRONT_MATTER_RE.exec(before)?.[0];
+  const next = frontMatter && !FRONT_MATTER_RE.test(t.source) ? frontMatter.trimStart() + t.source : t.source;
+  setSource(next);
+  view.focus();
+  if (!before.trim() || before === next) return;
+  toast(`Switched to ${t.name}`, "info", 8000, { label: "Undo", run: () => (setSource(before), view.focus()) });
+}
+
+$("#type-badge").addEventListener("click", openTypeDialog);
 
 // -------------------------------------------------------------- split pane
 

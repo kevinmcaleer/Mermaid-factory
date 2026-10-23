@@ -38,12 +38,24 @@ export async function api(method, url, body, { raw = false } = {}) {
   return data;
 }
 
-export function toast(message, kind = "info", ms = 2600) {
+/** Show a short message. `action` ({ label, run }) adds a button, e.g. Undo. */
+export function toast(message, kind = "info", ms = 2600, action = null) {
   const box = document.getElementById("toasts");
   if (!box) return;
   const el = document.createElement("div");
   el.className = "toast" + (kind === "error" ? " error" : "");
   el.textContent = message;
+  if (action) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "toast-action";
+    btn.textContent = action.label;
+    btn.addEventListener("click", () => {
+      el.remove();
+      action.run();
+    });
+    el.append(btn);
+  }
   box.append(el);
   setTimeout(() => el.remove(), ms);
 }
