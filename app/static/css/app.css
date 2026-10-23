@@ -248,6 +248,7 @@ body.editor-page { height: 100vh; overflow: hidden; }
 .tcard[aria-current="true"] { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent-soft); }
 .tcard .thumb-inner { flex: none; height: 84px; padding: .35rem; border-bottom: 1px solid var(--border); }
 .tcard-name { padding: .35rem .5rem; font-size: .85rem; font-weight: 600; }
+.tcard-keep { padding: 0 .5rem .4rem; margin-top: -.2rem; font-size: .75rem; color: var(--accent); }
 .tcard[aria-current="true"] .tcard-name::after { content: " · current"; font-weight: 400; color: var(--muted); }
 .toast-action {
   margin-left: .75rem; background: none; border: 0; padding: 0; color: inherit;

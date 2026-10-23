@@ -24,12 +24,14 @@ import {
   errorMessage,
   fixSvgSize,
   hasInlineConfig,
+  parses,
   renderMermaid,
   themeBackground,
 } from "./render.js";
 import { PanZoom } from "./panzoom.js";
 import { setupExportDialog } from "./exporter.js";
 import { lazyThumb, thumbObserver } from "./thumbs.js";
+import { canConvert, convertDiagram } from "./convert.js";
 
 const $ = (sel) => document.querySelector(sel);
 const RENDER_DEBOUNCE_MS = 300;
@@ -296,7 +298,10 @@ async function openTypeDialog() {
     buildTypeGrid();
   }
   const current = detectType(state.source);
-  typeGrid.querySelectorAll(".tcard").forEach((card) => card.setAttribute("aria-current", String(card.dataset.slug === current)));
+  typeGrid.querySelectorAll(".tcard").forEach((card) => {
+    card.setAttribute("aria-current", String(card.dataset.slug === current));
+    card.querySelector(".tcard-keep").hidden = !canConvert(current, card.dataset.slug);
+  });
 }
 
 function buildTypeGrid() {
@@ -315,7 +320,11 @@ function buildTypeGrid() {
     const name = document.createElement("span");
     name.className = "tcard-name";
     name.textContent = t.name;
-    card.append(thumb, name);
+    const keep = document.createElement("span");
+    keep.className = "tcard-keep";
+    keep.textContent = "keeps content";
+    keep.hidden = true;
+    card.append(thumb, name, keep);
     card.addEventListener("click", () => switchType(t));
     typeGrid.append(card);
     lazyThumb(observer, thumb, { source: t.source, theme: "default", config: {} });
@@ -337,15 +346,27 @@ typeSearch.addEventListener("keydown", (e) => {
   typeGrid.querySelector(".tcard:not([hidden])")?.click();
 });
 
-function switchType(t) {
+async function switchType(t) {
   typeDialog.close();
   const before = state.source;
+  const from = detectType(before);
+  if (from === t.slug) return;
   const frontMatter = FRONT_MATTER_RE.exec(before)?.[0];
-  const next = frontMatter && !FRONT_MATTER_RE.test(t.source) ? frontMatter.trimStart() + t.source : t.source;
+  // Carry the content over where the types are compatible, but only if the
+  // result actually parses; otherwise start from the type's template.
+  let code = convertDiagram(frontMatter ? before.slice(frontMatter.length) : before, from, t.slug);
+  if (code !== null && !(await parses(code))) code = null;
+  if (state.source !== before) return; // edited while we were checking
+  const converted = code !== null;
+  code = converted ? code : t.source;
+  const next = frontMatter && !FRONT_MATTER_RE.test(code) ? frontMatter.trimStart() + code : code;
   setSource(next);
   view.focus();
-  if (!before.trim() || before === next) return;
-  toast(`Switched to ${t.name}`, "info", 8000, { label: "Undo", run: () => (setSource(before), view.focus()) });
+  if (!before.trim()) return;
+  const message = converted
+    ? `Converted to ${t.name}`
+    : `Couldn't carry this over to ${t.name}, so it's the starter template`;
+  toast(message, "info", 8000, { label: "Undo", run: () => (setSource(before), view.focus()) });
 }
 
 $("#type-badge").addEventListener("click", openTypeDialog);

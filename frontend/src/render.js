@@ -54,6 +54,13 @@ export function renderMermaid(source, { theme, config, forExport = false } = {})
   return job;
 }
 
+/** True when mermaid can parse `source`. Queued with renders. */
+export function parses(source) {
+  const job = queue.then(() => mermaid.parse(source, { suppressErrors: true }));
+  queue = job.catch(() => {});
+  return job.then((result) => result !== false, () => false);
+}
+
 export function errorMessage(err) {
   const text = (err && (err.message || err.str)) || String(err);
   return text.replace(/^Error:\s*/, "").trim();
