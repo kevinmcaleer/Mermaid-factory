@@ -145,6 +145,13 @@ input[type="color"] { padding: 0; width: 2.2rem; height: 1.6rem; vertical-align:
 }
 .menu-items a:hover, .menu-items button:hover { background: var(--surface-2); }
 .menu-items .danger { color: var(--danger); }
+.topbar-start { display: flex; align-items: center; gap: .25rem; }
+.app-switcher .menu-items { left: 0; right: auto; min-width: 280px; }
+.app-switcher .menu-items small { display: block; color: var(--muted); font-size: .8rem; }
+.app-switcher .menu-items [aria-current="page"] { background: var(--surface-2); }
+.menu-heading { padding: .35rem .7rem; font-size: .75rem; font-weight: 600; color: var(--muted); }
+.menu-disabled { display: block; padding: .45rem .7rem; color: var(--muted); cursor: default; }
+.menu-items .menu-separated { border-top: 1px solid var(--border); margin-top: .3rem; padding-top: .55rem; border-radius: 0 0 6px 6px; }
 .menu-items form { margin: 0; }
 
 /* Dialogs and toasts -------------------------------------------------------- */

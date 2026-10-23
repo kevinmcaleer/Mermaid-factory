@@ -12,10 +12,30 @@
 </head>
 <body class="{% block body_class %}{% endblock %}">
   <header class="topbar">
+    <div class="topbar-start">
+    <details class="menu app-switcher">
+      <summary class="btn btn-ghost btn-sm" aria-label="Switch app" title="Switch app">
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </summary>
+      <nav class="menu-items app-switcher-items" aria-label="Kev's Power Tools">
+        <div class="menu-heading">Kev's Power Tools</div>
+        {% for app in powertools_apps %}
+          {% if app.id == powertools_current %}
+            <a href="/" aria-current="page"><strong>{{ app.name }}</strong><small>{{ app.description }}</small></a>
+          {% elif app.status == "soon" %}
+            <span class="menu-disabled" aria-disabled="true">{{ app.name }}<small>Coming soon</small></span>
+          {% else %}
+            <a href="{{ app.url }}">{{ app.name }}<small>{{ app.description }}</small></a>
+          {% endif %}
+        {% endfor %}
+        <a href="{{ powertools_home }}" class="menu-separated">All tools<small>kevspowertools.com</small></a>
+      </nav>
+    </details>
     <a class="brand" href="/">
       <img src="{{ static_url('img/favicon.svg') }}" alt="" width="24" height="24">
       <span>Mermaid Factory</span>
     </a>
+    </div>
     <nav class="topnav" aria-label="Main">
       {% if current_user %}
         <a href="/diagrams">Diagrams</a>

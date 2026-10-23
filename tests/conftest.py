@@ -19,6 +19,8 @@ def make_settings(tmp_path, **overrides):
         "DATABASE_PATH": str(tmp_path / "data" / "mermaid.db"),
         "LOG_LEVEL": "WARNING",
         "LOGIN_RATE_LIMIT": "1000",
+        # Tests never reach the landing page; the switcher shows its bundled list.
+        "POWERTOOLS_APPS_URL": "",
     }
     env.update({k: str(v) for k, v in overrides.items()})
     return load_settings(env)
