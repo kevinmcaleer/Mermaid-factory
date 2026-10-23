@@ -110,6 +110,7 @@ All settings are environment variables, normally set in `.env` (see `.env.exampl
 | `HOST` | `127.0.0.1` (`0.0.0.0` in Docker) | Interface the server binds to. |
 | `COMPOSE_PROFILES` | *(empty)* | Set to `tunnel` to start the bundled `cloudflared` service. |
 | `CLOUDFLARE_TUNNEL_TOKEN` | *(empty)* | Token of a remotely-managed Cloudflare Tunnel (see below). |
+| `COMPOSE_FILE` | `docker-compose.yml` | Add `:docker-compose.tunnel.yml` to stop publishing the app's port on the host when using the tunnel. |
 
 ## Running behind a reverse proxy (HTTPS)
 
@@ -182,8 +183,15 @@ COMPOSE_PROFILES=tunnel
 CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoi...   # the token from step 1
 HTTPS=true
 TRUST_PROXY=true
-BIND_ADDRESS=127.0.0.1   # optional: stop other machines reaching port 8000 directly
+COMPOSE_FILE=docker-compose.yml:docker-compose.tunnel.yml
 ```
+
+The `COMPOSE_FILE` line adds `docker-compose.tunnel.yml`, which stops the app publishing a
+port on the host. `cloudflared` talks to the app over the compose network, so nothing needs
+port 8000 on the host, and it can't clash with anything else already using that port. Leave
+the line out if you also want to reach the app directly at `http://<host>:8000`; then
+`PORT` and `BIND_ADDRESS` control the published port as usual. (`docker-compose.tunnel.yml`
+needs Docker Compose 2.24 or newer.)
 
 **3. Start it:** `docker compose up -d`. `docker compose ps` should show `cloudflared` as
 healthy once it has connected, and the tunnel shows as **Healthy** in the dashboard.
