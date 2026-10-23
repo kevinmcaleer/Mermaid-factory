@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -18,9 +20,17 @@ STATIC_DIR = BASE_DIR / "static"
 templates = Jinja2Templates(directory=str(BASE_DIR / "templates"))
 
 
+@lru_cache(maxsize=None)
+def _asset_hash(path: str) -> str:
+    try:
+        return hashlib.sha256((STATIC_DIR / path).read_bytes()).hexdigest()[:12]
+    except OSError:
+        return __version__
+
+
 def static_url(path: str) -> str:
-    """URL for a static asset with a cache-busting version query."""
-    return f"/static/{path}?v={__version__}"
+    """URL for a static asset with a content-hash query, so a changed file is never served stale."""
+    return f"/static/{path}?v={_asset_hash(path)}"
 
 
 templates.env.globals["static_url"] = static_url

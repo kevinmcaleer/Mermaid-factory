@@ -146,7 +146,15 @@ input[type="color"] { padding: 0; width: 2.2rem; height: 1.6rem; vertical-align:
 .menu-items a:hover, .menu-items button:hover { background: var(--surface-2); }
 .menu-items .danger { color: var(--danger); }
 .topbar-start { display: flex; align-items: center; gap: .25rem; }
-.app-switcher .menu-items { left: 0; right: auto; min-width: 280px; }
+.app-switcher > summary { padding: .3rem; }
+.app-switcher > summary svg { display: block; }
+.app-switcher .menu-items { left: 0; right: auto; width: 280px; max-width: calc(100vw - 2rem); }
+.app-switcher .menu-items strong { font-weight: 600; }
+@media (max-width: 560px) {
+  .topbar { gap: .5rem; }
+  .brand span { display: none; }
+  .topnav { gap: .25rem; }
+}
 .app-switcher .menu-items small { display: block; color: var(--muted); font-size: .8rem; }
 .app-switcher .menu-items [aria-current="page"] { background: var(--surface-2); }
 .menu-heading { padding: .35rem .7rem; font-size: .75rem; font-weight: 600; color: var(--muted); }
