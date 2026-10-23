@@ -7,7 +7,7 @@
   <div class="title-wrap">
     <span class="dirty-dot" id="dirty-indicator" title="Unsaved changes" hidden>●</span>
     <input id="title" class="title-input" maxlength="200" aria-label="Diagram title" value="{{ diagram.title }}">
-    <span class="badge" id="type-badge"></span>
+    <button type="button" class="badge type-btn" id="type-badge" title="Change diagram type" aria-haspopup="dialog"></button>
   </div>
   <div class="row toolbar-actions">
     <label class="inline-label">Theme
@@ -112,6 +112,17 @@
       <button type="button" class="btn btn-primary" id="share-create">Create link</button>
     </div>
     <div class="row end"><button value="close" class="btn">Close</button></div>
+  </form>
+</dialog>
+<dialog id="type-dialog" class="dialog dialog-wide" aria-labelledby="type-title">
+  <form method="dialog" class="form">
+    <div class="dash-head">
+      <h2 id="type-title">Change diagram type</h2>
+      <input type="search" id="type-search" placeholder="Filter types…" aria-label="Filter diagram types" autocomplete="off">
+    </div>
+    <p class="muted small">Picking a type replaces the code with that type's starter template. Undo (Ctrl/⌘+Z) brings your code back.</p>
+    <div class="type-grid" id="type-grid"><span class="spinner" aria-hidden="true"></span></div>
+    <div class="row end"><button value="close" class="btn">Cancel</button></div>
   </form>
 </dialog>
 <dialog id="draft-dialog" class="dialog" aria-labelledby="draft-title">
