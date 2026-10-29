@@ -292,8 +292,8 @@ already shipped.
 `npm run build` (in `frontend/`) also builds **mermaid-tools**, the editor's pieces as a
 library, into `frontend/dist/`:
 
-- `mermaid-tools.mjs` + `chunks/`: an ES module. Mermaid loads each diagram type as a
-  chunk on first use, so keep the folder together.
+- `esm/mermaid-tools.js` + `esm/chunks/`: an ES module. Mermaid loads each diagram type
+  as a chunk on first use, so keep the folder together.
 - `mermaid-tools.js`: one script that sets `window.MermaidTools` (everything inlined, about
   5 MB).
 
@@ -301,7 +301,7 @@ CI uploads both as the `mermaid-tools` build artifact. The kevsrobots.com projec
 vendors the ES module for its ```` ```mermaid ```` blocks.
 
 ```js
-import * as MermaidTools from "/vendor/mermaid-tools/mermaid-tools.mjs";
+import * as MermaidTools from "/vendor/mermaid-tools/esm/mermaid-tools.js";
 
 // The split editor: code on the left, the live diagram on the right (stacked when
 // narrow). Flowchart shapes are clickable, as in the app.

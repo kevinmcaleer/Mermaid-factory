@@ -60,7 +60,8 @@ const lib = {
 };
 const libOptions = [
   // ES module: mermaid's diagram types load as chunks on first use.
-  { ...lib, entryPoints: { "mermaid-tools": "src/lib.js" }, outdir: libdir, outExtension: { ".js": ".mjs" }, format: "esm", splitting: true, chunkNames: "chunks/[name]-[hash]" },
+  // (.js rather than .mjs, which some servers don't send as JavaScript.)
+  { ...lib, entryPoints: { "mermaid-tools": "src/lib.js" }, outdir: libdir + "esm/", format: "esm", splitting: true, chunkNames: "chunks/[name]-[hash]" },
   // One script setting window.MermaidTools (everything inlined, so larger).
   { ...lib, entryPoints: { "mermaid-tools": "src/lib.js" }, outdir: libdir, format: "iife", globalName: "MermaidTools" },
 ];

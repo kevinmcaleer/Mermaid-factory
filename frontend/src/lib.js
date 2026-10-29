@@ -1,6 +1,6 @@
 // mermaid-tools: Mermaid Factory's pieces for other pages and editors.
-// Built to frontend/dist/ as an ES module (mermaid-tools.mjs, which loads each
-// diagram type on demand) and a script that sets window.MermaidTools
+// Built to frontend/dist/ as an ES module (esm/mermaid-tools.js, which loads
+// each diagram type on demand) and a script that sets window.MermaidTools
 // (mermaid-tools.js). The app uses these same modules.
 
 import { mermaid as mermaidExtensions } from "./mermaid-lang.js";
