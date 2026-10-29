@@ -206,7 +206,8 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
   // A click (not a drag) on a node opens it; on empty space closes.
   let down = null;
   const onDown = (e) => {
-    if (e.button !== 0 || pop.contains(e.target)) return (down = null);
+    // Not on the popover or other controls over the drawing (the zoom toolbar).
+    if (e.button !== 0 || pop.contains(e.target) || e.target.closest?.("[data-mf-ui]")) return (down = null);
     const g = e.target.closest?.("g.node");
     down = { x: e.clientX, y: e.clientY, id: g && canvas.contains(g) ? nodeIdFromElement(g) : null };
   };

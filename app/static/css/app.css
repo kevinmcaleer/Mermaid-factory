@@ -285,7 +285,6 @@ body.editor-page { height: 100vh; overflow: hidden; }
 .code-editor .cm-error-line { background: rgb(198 40 40 / 14%); }
 
 .preview-tools { display: flex; align-items: center; gap: .25rem; padding: .3rem .6rem; border-bottom: 1px solid var(--border); background: var(--surface); }
-.zoom-level { min-width: 3.2rem; text-align: center; font-size: .85rem; font-variant-numeric: tabular-nums; }
 .hint { margin-left: auto; }
 .preview-surface { background: var(--preview-bg); }
 .preview-viewport { flex: 1; position: relative; overflow: hidden; cursor: grab; touch-action: none; }
@@ -336,7 +335,7 @@ body.editor-page { height: 100vh; overflow: hidden; }
   .pane-preview { flex: 0 0 60vh; }
   .divider { display: none; }
   .side-panel { flex: 0 0 auto; border-left: 0; border-top: 1px solid var(--border); }
-  .hint { display: none; }
+  .preview-tools { display: none; }
 }
 
 /* Show code exactly as typed: no "-->" ligatures. */
