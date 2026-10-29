@@ -6,7 +6,8 @@ let renderCounter = 0;
 let queue = Promise.resolve();
 
 /** Build the mermaid config for a diagram's theme and saved style options.
- *  `forExport` switches labels to pure SVG <text> (no <foreignObject>) so the
+ *  `themeVariables` are mermaid's own (primaryColor, lineColor, dropShadow…),
+ *  for a host restyling the theme, usually with theme "base". `forExport` switches labels to pure SVG <text> (no <foreignObject>) so the
  *  file works in Inkscape and can be drawn onto a canvas for PNG export. */
 export function buildConfig(theme = "default", config = {}, { forExport = false } = {}) {
   const cfg = {
@@ -18,9 +19,10 @@ export function buildConfig(theme = "default", config = {}, { forExport = false 
   if (config.look) cfg.look = config.look;
   if (config.layout) cfg.layout = config.layout;
   if (config.curve) cfg.flowchart.curve = config.curve;
+  if (config.themeVariables) cfg.themeVariables = { ...config.themeVariables };
   if (config.fontFamily) {
     cfg.fontFamily = config.fontFamily;
-    cfg.themeVariables = { fontFamily: config.fontFamily };
+    cfg.themeVariables = { ...cfg.themeVariables, fontFamily: config.fontFamily };
   }
   if (forExport) {
     cfg.htmlLabels = false;

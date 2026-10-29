@@ -19,7 +19,8 @@ export function mermaidLanguage() {
   return mermaidExtensions();
 }
 
-// { theme, look, layout, curve, font | fontFamily } → (theme, config)
+// { theme, look, layout, curve, font | fontFamily, config } → (theme, config).
+// config can carry mermaid themeVariables for a host's own palette.
 function split(options = {}) {
   const { theme, font, fontFamily, look, layout, curve } = options;
   const config = {};
