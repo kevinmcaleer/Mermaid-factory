@@ -32,6 +32,8 @@ import { PanZoom } from "./panzoom.js";
 import { setupExportDialog } from "./exporter.js";
 import { lazyThumb, thumbObserver } from "./thumbs.js";
 import { canConvert, convertDiagram } from "./convert.js";
+import { attachCanvasEditor } from "./canvas-edit.js";
+import { minimalChange } from "./flowchart-edit.js";
 
 const $ = (sel) => document.querySelector(sel);
 const RENDER_DEBOUNCE_MS = 300;
@@ -187,7 +189,10 @@ const viewport = $("#preview-viewport");
 const canvas = $("#preview-canvas");
 const zoomLabel = $("#zoom-level");
 const panzoom = new PanZoom(viewport, canvas, {
-  onChange: (scale) => (zoomLabel.textContent = `${Math.round(scale * 100)}%`),
+  onChange: (scale) => {
+    zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+    canvasEditor.refresh(); // keep the shape editor beside its node
+  },
 });
 document.querySelectorAll("[data-zoom]").forEach((btn) =>
   btn.addEventListener("click", () => {
@@ -198,6 +203,14 @@ document.querySelectorAll("[data-zoom]").forEach((btn) =>
     else panzoom.reset();
   }),
 );
+
+// Clicking a flowchart node edits its text and shape, or adds a node joined to it.
+const canvasEditor = attachCanvasEditor({
+  viewport,
+  canvas,
+  getSource: () => state.source,
+  setSource: (next) => view.dispatch({ changes: minimalChange(state.source, next) }),
+});
 
 let renderSeq = 0;
 let rendering = false;
@@ -230,6 +243,7 @@ async function doRender() {
     bindFunctions?.(canvas);
     $("#preview-empty").hidden = true;
     panzoom.setContent(fixSvgSize(svgEl));
+    canvasEditor.refresh();
     showError(null);
   } catch (err) {
     // Keep the last good render on screen; just report the problem.

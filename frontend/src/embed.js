@@ -1,0 +1,216 @@
+// The editor as a widget for other pages: Mermaid code on the left, the live
+// diagram on the right (stacked when narrow), with the same error handling as
+// the app (keep the last good drawing, mark the line) and click-to-edit
+// flowchart shapes. Used by Markdown editors for ```mermaid blocks.
+
+import { EditorView, drawSelection, highlightActiveLine, keymap, lineNumbers, Decoration } from "@codemirror/view";
+import { EditorState, StateEffect, StateField } from "@codemirror/state";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
+import { bracketMatching } from "@codemirror/language";
+
+import { mermaid as mermaidLang } from "./mermaid-lang.js";
+import { errorLine, errorMessage, renderMermaid } from "./render.js";
+import { attachCanvasEditor } from "./canvas-edit.js";
+import { isFlowchart, minimalChange } from "./flowchart-edit.js";
+
+const STYLE_ID = "mf-embed-style";
+const CSS = `
+.mf-embed {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0;
+  border: 1px solid var(--mf-border, #d9dde4); border-radius: 10px; overflow: visible;
+  background: var(--mf-bg, transparent); color: var(--mf-text, inherit); text-align: left;
+}
+.mf-embed.mf-embed-stacked { grid-template-columns: minmax(0, 1fr); }
+.mf-embed-code { min-width: 0; border-right: 1px solid var(--mf-border, #d9dde4); border-radius: 10px 0 0 10px; overflow: hidden; }
+.mf-embed-stacked .mf-embed-code { border-right: 0; border-bottom: 1px solid var(--mf-border, #d9dde4); border-radius: 10px 10px 0 0; }
+.mf-embed-code .cm-editor { height: 100%; min-height: 8rem; background: var(--mf-code-bg, transparent); font-size: 0.9em; }
+.mf-embed-code .cm-editor.cm-focused { outline: none; }
+.mf-embed-code .cm-scroller { font-family: var(--mf-font-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace); }
+.mf-embed-code .cm-gutters { background: transparent; border-right: 0; color: var(--mf-muted, #8b93a3); }
+.mf-embed-code .cm-activeLine, .mf-embed-code .cm-activeLineGutter { background: color-mix(in srgb, currentColor 5%, transparent); }
+.mf-embed-code .mf-error-line { background: color-mix(in srgb, #c62828 14%, transparent); }
+.mf-embed-side { display: flex; flex-direction: column; min-width: 0; }
+.mf-embed-preview { position: relative; flex: 1; min-height: 8rem; padding: 12px; overflow: visible; display: flex; align-items: center; justify-content: center; }
+.mf-embed-preview svg { max-width: 100%; height: auto; }
+.mf-embed-empty { color: var(--mf-muted, #8b93a3); font-size: 0.9em; }
+.mf-embed-status { padding: 4px 10px 6px; font-size: 0.78em; color: var(--mf-muted, #8b93a3); }
+.mf-embed-status.mf-embed-error { color: var(--mf-error, #c62828); white-space: pre-wrap; }
+`;
+
+const setErrorLine = StateEffect.define();
+const errorLineField = StateField.define({
+  create: () => Decoration.none,
+  update(deco, tr) {
+    deco = deco.map(tr.changes);
+    for (const e of tr.effects) {
+      if (!e.is(setErrorLine)) continue;
+      if (e.value == null || e.value < 1 || e.value > tr.state.doc.lines) deco = Decoration.none;
+      else deco = Decoration.set([Decoration.line({ class: "mf-error-line" }).range(tr.state.doc.line(e.value).from)]);
+    }
+    return deco;
+  },
+  provide: (f) => EditorView.decorations.from(f),
+});
+
+function injectStyle(doc) {
+  if (doc.getElementById(STYLE_ID)) return;
+  const style = doc.createElement("style");
+  style.id = STYLE_ID;
+  style.textContent = CSS;
+  doc.head.append(style);
+}
+
+/**
+ * Mounts the split editor in `element`.
+ *
+ * Options: `source`; `onChange(source)` after each edit (typed or made on the
+ * diagram); `onExit(where)` when the writer leaves the editor with the keyboard
+ * ("before": ↑ on the first line, "after": ↓ on the last line, or Esc);
+ * `theme` and `config` (look, layout, curve, fontFamily) for mermaid;
+ * `autofocus`; `stackBelow` (px width under which the panes stack, default 560).
+ *
+ * Returns { view, getSource, setSource, focus, destroy }. `setSource` doesn't
+ * call `onChange`.
+ */
+export function mountEditor(element, options = {}) {
+  const doc = element.ownerDocument;
+  injectStyle(doc);
+  const { onChange = () => {}, onExit = () => {}, stackBelow = 560 } = options;
+  let theme = options.theme || "default";
+  let config = options.config || {};
+  let quiet = false;
+
+  const root = doc.createElement("div");
+  root.className = "mf-embed";
+  root.innerHTML = `
+    <div class="mf-embed-code"></div>
+    <div class="mf-embed-side">
+      <div class="mf-embed-preview"><div class="mf-embed-canvas"></div></div>
+      <div class="mf-embed-status" aria-live="polite"></div>
+    </div>`;
+  element.append(root);
+  const preview = root.querySelector(".mf-embed-preview");
+  const canvas = root.querySelector(".mf-embed-canvas");
+  const status = root.querySelector(".mf-embed-status");
+
+  const atEdge = (where) => (view) => {
+    const { main } = view.state.selection;
+    if (!main.empty) return false;
+    const line = view.state.doc.lineAt(main.head);
+    if (where === "before" ? line.number !== 1 : line.number !== view.state.doc.lines) return false;
+    onExit(where);
+    return true;
+  };
+
+  const view = new EditorView({
+    parent: root.querySelector(".mf-embed-code"),
+    state: EditorState.create({
+      doc: options.source || "",
+      extensions: [
+        lineNumbers(),
+        history(),
+        drawSelection(),
+        highlightActiveLine(),
+        bracketMatching(),
+        keymap.of([
+          { key: "ArrowUp", run: atEdge("before") },
+          { key: "ArrowDown", run: atEdge("after") },
+          { key: "Escape", run: () => (onExit("after"), true) },
+          indentWithTab,
+          ...historyKeymap,
+          ...defaultKeymap,
+        ]),
+        mermaidLang(),
+        errorLineField,
+        EditorView.lineWrapping,
+        EditorView.contentAttributes.of({ "aria-label": "Mermaid code" }),
+        EditorView.updateListener.of((update) => {
+          if (!update.docChanged) return;
+          if (!quiet) onChange(update.state.doc.toString());
+          scheduleRender();
+        }),
+      ],
+    }),
+  });
+
+  const getSource = () => view.state.doc.toString();
+  const canvasEditor = attachCanvasEditor({
+    viewport: preview,
+    canvas,
+    getSource,
+    setSource: (next) => view.dispatch({ changes: minimalChange(getSource(), next) }),
+  });
+
+  let timer = 0;
+  let seq = 0;
+  async function render() {
+    const mine = ++seq;
+    const source = getSource();
+    if (!source.trim()) {
+      canvas.innerHTML = '<div class="mf-embed-empty">Type some Mermaid code to see the diagram here.</div>';
+      setStatus(null, source);
+      return;
+    }
+    try {
+      const { svg, bindFunctions } = await renderMermaid(source, { theme, config });
+      if (mine !== seq) return;
+      canvas.innerHTML = svg;
+      bindFunctions?.(canvas);
+      canvasEditor.refresh();
+      setStatus(null, source);
+    } catch (err) {
+      if (mine !== seq) return;
+      // Keep the last good drawing; say what's wrong and mark the line.
+      setStatus(err, source);
+    }
+  }
+  function scheduleRender() {
+    clearTimeout(timer);
+    timer = setTimeout(render, 250);
+  }
+  function setStatus(err, source) {
+    view.dispatch({ effects: setErrorLine.of(err ? errorLine(err) : null) });
+    status.classList.toggle("mf-embed-error", !!err);
+    status.textContent = err
+      ? errorMessage(err)
+      : isFlowchart(source)
+        ? "Click a shape to change its text or shape, or to add a shape joined to it."
+        : "";
+  }
+
+  // Side by side when there's room, stacked when there isn't.
+  const resize = new ResizeObserver(() => root.classList.toggle("mf-embed-stacked", root.clientWidth < stackBelow));
+  resize.observe(root);
+
+  render();
+  if (options.autofocus) view.focus();
+
+  return {
+    view,
+    root,
+    getSource,
+    setSource(next) {
+      if (next === getSource()) return;
+      quiet = true;
+      try {
+        view.dispatch({ changes: minimalChange(getSource(), next) });
+      } finally {
+        quiet = false;
+      }
+    },
+    setTheme(next, nextConfig) {
+      theme = next || "default";
+      if (nextConfig) config = nextConfig;
+      render();
+    },
+    focus: () => view.focus(),
+    destroy() {
+      clearTimeout(timer);
+      seq++;
+      resize.disconnect();
+      canvasEditor.destroy();
+      view.destroy();
+      root.remove();
+    },
+  };
+}
