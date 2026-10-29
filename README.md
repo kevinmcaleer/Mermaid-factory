@@ -310,7 +310,7 @@ const editor = MermaidTools.mountEditor(element, {
   onChange: (source) => save(source),     // typed or made on the drawing
   onExit: (where) => leave(where),        // "before" (↑ on line 1), "after" (↓ on the last line, Esc)
   theme: "default",                       // any mermaid theme
-  config: { look: "neo" },                // look, layout, curve, fontFamily
+  config: { look: "neo" },                // look, layout, curve, fontFamily, themeVariables
   autofocus: true,
 });
 editor.setSource(text);                   // doesn't call onChange
@@ -318,6 +318,12 @@ editor.destroy();
 
 // Draw a diagram. Never rejects: a syntax error comes back as { error, line }.
 const { svg, error, line } = await MermaidTools.renderMermaid("graph TD; A-->B", { theme: "dark" });
+
+// Your own palette: theme "base" plus mermaid's themeVariables.
+await MermaidTools.renderMermaid(code, {
+  theme: "base",
+  config: { themeVariables: { primaryColor: "#fff", lineColor: "#6b6a63", dropShadow: "none" } },
+});
 
 MermaidTools.mermaidLanguage();          // CodeMirror 6 extensions for Mermaid highlighting
 await MermaidTools.exportSvg(code, { background: "#fff" });             // standalone SVG text
