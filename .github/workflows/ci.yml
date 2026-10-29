@@ -46,7 +46,13 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
+      - run: npm test
       - run: npm run build
+      - name: Upload the mermaid-tools library
+        uses: actions/upload-artifact@v4
+        with:
+          name: mermaid-tools
+          path: frontend/dist/
       - name: Install Playwright Chromium
         run: |
           npm install --no-save playwright

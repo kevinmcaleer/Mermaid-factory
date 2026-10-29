@@ -8,6 +8,8 @@ live on the right, and save as many diagrams as you like into a SQLite database 
 on a plain directory you can back up from outside the container.
 
 - Split-pane editor (CodeMirror 6) with Mermaid highlighting and a live preview
+- Edit flowcharts on the drawing: click a shape to change its text or shape, or add a
+  shape joined to it; every change is written back into the code
 - Clear syntax errors that keep the last good render on screen and highlight the line
 - Pan and zoom for big diagrams, Ctrl/⌘+S to save, unsaved-changes warning, draft recovery
 - A gallery with a working starter for 28 diagram types, plus a syntax cheat sheet for each
@@ -235,6 +237,7 @@ make dev         # builds the frontend if needed, runs on http://127.0.0.1:8000 
 make test        # pytest
 make lint        # ruff
 make check-templates   # renders every gallery template in headless Chromium
+cd frontend && npm test   # unit tests for the browser code (node --test)
 ```
 
 Run `cd frontend && npm run watch` in another terminal to rebuild the browser bundle as
@@ -283,6 +286,50 @@ data/              the database (git-ignored, mounted in Docker)
 Add a new file such as `app/migrations/0004_add_folders.sql`. It is applied automatically
 on the next start and recorded in `schema_migrations`. Never edit a migration that has
 already shipped.
+
+## Using the editor in other pages
+
+`npm run build` (in `frontend/`) also builds **mermaid-tools**, the editor's pieces as a
+library, into `frontend/dist/`:
+
+- `esm/mermaid-tools.js` + `esm/chunks/`: an ES module. Mermaid loads each diagram type
+  as a chunk on first use, so keep the folder together.
+- `mermaid-tools.js`: one script that sets `window.MermaidTools` (everything inlined, about
+  5 MB).
+
+CI uploads both as the `mermaid-tools` build artifact. The kevsrobots.com project editor
+vendors the ES module for its ```` ```mermaid ```` blocks.
+
+```js
+import * as MermaidTools from "/vendor/mermaid-tools/esm/mermaid-tools.js";
+
+// The split editor: code on the left, the live diagram on the right (stacked when
+// narrow). Flowchart shapes are clickable, as in the app.
+const editor = MermaidTools.mountEditor(element, {
+  source: "flowchart TD\n  A[Start] --> B(Next)",
+  onChange: (source) => save(source),     // typed or made on the drawing
+  onExit: (where) => leave(where),        // "before" (↑ on line 1), "after" (↓ on the last line, Esc)
+  theme: "default",                       // any mermaid theme
+  config: { look: "neo" },                // look, layout, curve, fontFamily
+  autofocus: true,
+});
+editor.setSource(text);                   // doesn't call onChange
+editor.destroy();
+
+// Draw a diagram. Never rejects: a syntax error comes back as { error, line }.
+const { svg, error, line } = await MermaidTools.renderMermaid("graph TD; A-->B", { theme: "dark" });
+
+MermaidTools.mermaidLanguage();          // CodeMirror 6 extensions for Mermaid highlighting
+await MermaidTools.exportSvg(code, { background: "#fff" });             // standalone SVG text
+await MermaidTools.exportPng(code, { scale: 2, background: "transparent" }); // PNG Blob
+MermaidTools.templates;                   // the gallery's starters: [{ slug, name, description, docs, source }]
+
+// Click-to-edit on a drawing you render yourself, and the source edits behind it.
+MermaidTools.attachCanvasEditor({ viewport, canvas, getSource, setSource }).refresh();
+MermaidTools.flowchart.setNodeText(source, "A", "Begin");
+MermaidTools.flowchart.setNodeShape(source, "A", "stadium");
+MermaidTools.flowchart.addConnectedNode(source, "A", { text: "Next", shape: "circle" });
+```
 
 ## Releases
 
