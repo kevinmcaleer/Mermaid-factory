@@ -6,7 +6,7 @@ WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json ./
 RUN npm ci --no-audit --no-fund
 COPY frontend/ ./
-RUN mkdir -p ../app/static && npm run build
+RUN mkdir -p ../app/static && npm run build -- --app-only
 
 # ---- Stage 2: Python runtime
 FROM python:3.13-slim-bookworm AS runtime

@@ -9,7 +9,9 @@ const outdir = new URL("../app/static/build/", import.meta.url).pathname;
 const libdir = new URL("./dist/", import.meta.url).pathname;
 const galleryDir = new URL("../app/gallery/", import.meta.url).pathname;
 const watch = process.argv.includes("--watch");
-const version = /^version\s*=\s*"([^"]+)"/m.exec(await readFile(new URL("../pyproject.toml", import.meta.url), "utf8"))[1];
+// The Docker image only needs the app (and has no pyproject.toml or gallery here).
+const appOnly = process.argv.includes("--app-only");
+const version = appOnly ? "" : /^version\s*=\s*"([^"]+)"/m.exec(await readFile(new URL("../pyproject.toml", import.meta.url), "utf8"))[1];
 
 // `import templates from "mf:templates"`: the gallery's starters, as the
 // /api/templates endpoint serves them.
@@ -63,10 +65,11 @@ const libOptions = [
   { ...lib, entryPoints: { "mermaid-tools": "src/lib.js" }, outdir: libdir, format: "iife", globalName: "MermaidTools" },
 ];
 
+const builds = appOnly ? [options] : [options, ...libOptions];
 await rm(outdir, { recursive: true, force: true });
-await rm(libdir, { recursive: true, force: true });
+if (!appOnly) await rm(libdir, { recursive: true, force: true });
 if (watch) {
-  for (const o of [options, ...libOptions]) await (await esbuild.context(o)).watch();
+  for (const o of builds) await (await esbuild.context(o)).watch();
 } else {
-  await Promise.all([options, ...libOptions].map((o) => esbuild.build(o)));
+  await Promise.all(builds.map((o) => esbuild.build(o)));
 }
