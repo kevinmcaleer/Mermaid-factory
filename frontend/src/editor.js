@@ -29,6 +29,7 @@ import {
   themeBackground,
 } from "./render.js";
 import { PanZoom } from "./panzoom.js";
+import { attachZoomToolbar } from "./zoom-toolbar.js";
 import { setupExportDialog } from "./exporter.js";
 import { lazyThumb, thumbObserver } from "./thumbs.js";
 import { canConvert, convertDiagram } from "./convert.js";
@@ -187,22 +188,14 @@ document.addEventListener("keydown", (e) => {
 
 const viewport = $("#preview-viewport");
 const canvas = $("#preview-canvas");
-const zoomLabel = $("#zoom-level");
 const panzoom = new PanZoom(viewport, canvas, {
   onChange: (scale) => {
-    zoomLabel.textContent = `${Math.round(scale * 100)}%`;
+    zoomBar.update(scale);
     canvasEditor.refresh(); // keep the shape editor beside its node
   },
 });
-document.querySelectorAll("[data-zoom]").forEach((btn) =>
-  btn.addEventListener("click", () => {
-    const z = btn.dataset.zoom;
-    if (z === "in") panzoom.zoomBy(1.25);
-    else if (z === "out") panzoom.zoomBy(0.8);
-    else if (z === "fit") panzoom.fit();
-    else panzoom.reset();
-  }),
-);
+// Floating over the drawing: fit, −, the zoom level (100% ⇄ fit) and +.
+const zoomBar = attachZoomToolbar(viewport, panzoom);
 
 // Clicking a flowchart node edits its text and shape, or adds a node joined to it.
 const canvasEditor = attachCanvasEditor({

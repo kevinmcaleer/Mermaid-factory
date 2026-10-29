@@ -9,7 +9,9 @@ import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirro
 import { bracketMatching } from "@codemirror/language";
 
 import { mermaid as mermaidLang } from "./mermaid-lang.js";
-import { errorLine, errorMessage, renderMermaid } from "./render.js";
+import { errorLine, errorMessage, fixSvgSize, renderMermaid } from "./render.js";
+import { PanZoom } from "./panzoom.js";
+import { attachZoomToolbar } from "./zoom-toolbar.js";
 import { attachCanvasEditor } from "./canvas-edit.js";
 import { isFlowchart, minimalChange } from "./flowchart-edit.js";
 
@@ -34,9 +36,12 @@ const CSS = `
 .mf-embed-code .cm-activeLine, .mf-embed-code .cm-activeLineGutter { background: color-mix(in srgb, currentColor 5%, transparent); }
 .mf-embed-code .mf-error-line { background: color-mix(in srgb, #c62828 14%, transparent); }
 .mf-embed-side { display: flex; flex-direction: column; min-width: 0; }
-.mf-embed-preview { position: relative; flex: 1; min-height: 8rem; padding: 12px; overflow: visible; display: flex; align-items: center; justify-content: center; }
-.mf-embed-preview svg { max-width: 100%; height: auto; }
-.mf-embed-empty { color: var(--mf-muted, #8b93a3); font-size: 0.9em; }
+.mf-embed-preview { position: relative; flex: 1; min-height: 18rem; overflow: hidden; cursor: grab; touch-action: none; }
+.mf-embed-preview.panning { cursor: grabbing; }
+.mf-embed-canvas { position: absolute; left: 0; top: 0; transform-origin: 0 0; }
+.mf-embed-canvas svg { display: block; max-width: none !important; }
+.mf-embed-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; color: var(--mf-muted, #8b93a3); font-size: 0.9em; }
+.mf-embed-empty[hidden] { display: none; }
 .mf-embed-status { padding: 4px 10px 6px; font-size: 0.78em; color: var(--mf-muted, #8b93a3); }
 .mf-embed-status.mf-embed-error { color: var(--mf-error, #c62828); white-space: pre-wrap; }
 `;
@@ -89,13 +94,17 @@ export function mountEditor(element, options = {}) {
   root.innerHTML = `
     <div class="mf-embed-code"></div>
     <div class="mf-embed-side">
-      <div class="mf-embed-preview"><div class="mf-embed-canvas"></div></div>
+      <div class="mf-embed-preview">
+        <div class="mf-embed-canvas"></div>
+        <div class="mf-embed-empty" hidden>Type some Mermaid code to see the diagram here.</div>
+      </div>
       <div class="mf-embed-status" aria-live="polite"></div>
     </div>`;
   element.append(root);
   const preview = root.querySelector(".mf-embed-preview");
   const canvas = root.querySelector(".mf-embed-canvas");
   const status = root.querySelector(".mf-embed-status");
+  const empty = root.querySelector(".mf-embed-empty");
 
   const atEdge = (where) => (view) => {
     const { main } = view.state.selection;
@@ -138,6 +147,17 @@ export function mountEditor(element, options = {}) {
   });
 
   const getSource = () => view.state.doc.toString();
+  // Drag to pan, Ctrl/⌘ + wheel to zoom (a plain wheel scrolls the page), and
+  // the floating toolbar. The view stays fitted until the writer zooms or pans.
+  const panzoom = new PanZoom(preview, canvas, {
+    wheelPans: false,
+    keepFitted: true,
+    onChange: (scale) => {
+      zoomBar.update(scale);
+      canvasEditor.refresh();
+    },
+  });
+  const zoomBar = attachZoomToolbar(preview, panzoom);
   const canvasEditor = attachCanvasEditor({
     viewport: preview,
     canvas,
@@ -151,7 +171,9 @@ export function mountEditor(element, options = {}) {
     const mine = ++seq;
     const source = getSource();
     if (!source.trim()) {
-      canvas.innerHTML = '<div class="mf-embed-empty">Type some Mermaid code to see the diagram here.</div>';
+      canvas.innerHTML = "";
+      panzoom.clear();
+      empty.hidden = false;
       setStatus(null, source);
       return;
     }
@@ -160,6 +182,8 @@ export function mountEditor(element, options = {}) {
       if (mine !== seq) return;
       canvas.innerHTML = svg;
       bindFunctions?.(canvas);
+      empty.hidden = true;
+      panzoom.setContent(fixSvgSize(canvas.querySelector("svg")));
       canvasEditor.refresh();
       setStatus(null, source);
     } catch (err) {
@@ -183,8 +207,13 @@ export function mountEditor(element, options = {}) {
   }
 
   // Side by side when there's room, stacked when there isn't.
-  const resize = new ResizeObserver(() => root.classList.toggle("mf-embed-stacked", root.clientWidth < stackBelow));
+  // A fitted view refits when the panes change size.
+  const resize = new ResizeObserver(() => {
+    root.classList.toggle("mf-embed-stacked", root.clientWidth < stackBelow);
+    if (panzoom.hasContent && panzoom.fitted) panzoom.fit();
+  });
   resize.observe(root);
+  resize.observe(preview);
 
   render();
   if (options.autofocus) view.focus();
@@ -213,6 +242,7 @@ export function mountEditor(element, options = {}) {
       seq++;
       resize.disconnect();
       canvasEditor.destroy();
+      zoomBar.destroy();
       view.destroy();
       root.remove();
     },
