@@ -35,8 +35,9 @@ const CSS = `
   background: var(--mf-pop-bg, var(--surface, #fff)); color: var(--mf-pop-text, var(--text, #1d2330));
   border: 1px solid var(--mf-pop-border, var(--border, #d9dde4)); border-radius: 10px;
   box-shadow: 0 4px 18px rgb(0 0 0 / 16%); font: 13px/1.35 var(--mf-pop-font, system-ui, sans-serif);
-  cursor: default; text-align: left;
+  cursor: default; text-align: left; white-space: normal; letter-spacing: normal;
 }
+.mf-node-pop * { box-sizing: border-box; }
 .mf-node-pop[hidden] { display: none; }
 .mf-node-pop-head { display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: var(--mf-pop-muted, var(--muted, #5d6677)); font-size: 12px; }
 .mf-node-pop-head span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

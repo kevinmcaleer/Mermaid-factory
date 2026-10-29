@@ -19,13 +19,17 @@ const CSS = `
   display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 0;
   border: 1px solid var(--mf-border, #d9dde4); border-radius: 10px; overflow: visible;
   background: var(--mf-bg, transparent); color: var(--mf-text, inherit); text-align: left;
+  white-space: normal; line-height: 1.4;
 }
 .mf-embed.mf-embed-stacked { grid-template-columns: minmax(0, 1fr); }
 .mf-embed-code { min-width: 0; border-right: 1px solid var(--mf-border, #d9dde4); border-radius: 10px 0 0 10px; overflow: hidden; }
 .mf-embed-stacked .mf-embed-code { border-right: 0; border-bottom: 1px solid var(--mf-border, #d9dde4); border-radius: 10px 10px 0 0; }
 .mf-embed-code .cm-editor { height: 100%; min-height: 8rem; background: var(--mf-code-bg, transparent); font-size: 0.9em; }
 .mf-embed-code .cm-editor.cm-focused { outline: none; }
-.mf-embed-code .cm-scroller { font-family: var(--mf-font-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace); }
+/* !important: the editor may sit inside another CodeMirror (a Markdown editor), whose styles reach in. */
+.mf-embed-code .cm-scroller { font-family: var(--mf-font-mono, ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace) !important; line-height: 1.5 !important; font-size: 1em !important; }
+.mf-embed-code .cm-content { padding: 6px 0 !important; font-family: inherit !important; }
+.mf-embed-code .cm-line { padding: 0 8px 0 6px !important; font-family: inherit !important; font-size: inherit !important; line-height: inherit !important; }
 .mf-embed-code .cm-gutters { background: transparent; border-right: 0; color: var(--mf-muted, #8b93a3); }
 .mf-embed-code .cm-activeLine, .mf-embed-code .cm-activeLineGutter { background: color-mix(in srgb, currentColor 5%, transparent); }
 .mf-embed-code .mf-error-line { background: color-mix(in srgb, #c62828 14%, transparent); }
