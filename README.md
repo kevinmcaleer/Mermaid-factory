@@ -339,6 +339,15 @@ MermaidTools.templates;                   // the gallery's starters: [{ slug, na
 // length, and it survives logging in on the way.
 MermaidTools.factoryLink(code, { base: "https://mermaid.example", title: "Robot arm" });
 
+// The round trip: open it there in a new tab with "Save to your project" (and Ctrl/⌘+S),
+// which sends the edited code back here. onSave returns true when it was kept, or a
+// message saying why not; Mermaid Factory shows which. mountEditor's
+// `onOpenInFactory: (code) => …` makes its link do this.
+MermaidTools.openInFactory(code, {
+  base: "https://mermaid.example", title: "Robot arm", label: "your project",
+  onSave: (newCode) => replaceBlock(code, newCode),
+});
+
 // Click-to-edit on a drawing you render yourself, and the source edits behind it.
 MermaidTools.attachCanvasEditor({ viewport, canvas, getSource, setSource }).refresh();
 MermaidTools.flowchart.setNodeText(source, "A", "Begin");

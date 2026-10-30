@@ -53,3 +53,11 @@ def test_script_title_is_escaped(alice):
     share = alice.api("POST", f"/api/diagrams/{d['id']}/share").json()
     public = alice.get(share["url"]).text
     assert evil not in public
+
+
+def test_opener_kept_only_on_the_handoff_pages(alice, new_client):
+    # "Open in Mermaid Factory" sends a diagram back through window.opener,
+    # which Cross-Origin-Opener-Policy: same-origin would cut.
+    assert alice.get("/diagrams/new/edit").headers["cross-origin-opener-policy"] == "unsafe-none"
+    assert new_client().get("/login").headers["cross-origin-opener-policy"] == "unsafe-none"
+    assert alice.get("/diagrams").headers["cross-origin-opener-policy"] == "same-origin"
