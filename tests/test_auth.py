@@ -127,6 +127,15 @@ def test_login_next_param_is_local_only(alice, new_client):
     assert c.login("alice", next="//evil.example/").headers["location"] == "/diagrams"
 
 
+def test_login_keeps_a_handed_over_diagram(alice, new_client):
+    # login-next.js appends location.hash (#source=…) to `next`; the redirect keeps it.
+    c = new_client()
+    assert "js/login-next.js" in c.get("/login?next=/diagrams/new/edit").text
+    c = new_client()
+    r = c.login("alice", next="/diagrams/new/edit#source=Z3JhcGggVEQ")
+    assert r.headers["location"] == "/diagrams/new/edit#source=Z3JhcGggVEQ"
+
+
 def test_secure_cookie_when_https(tmp_path):
     from conftest import Client
 

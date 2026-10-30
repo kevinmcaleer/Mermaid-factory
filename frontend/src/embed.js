@@ -14,6 +14,7 @@ import { PanZoom } from "./panzoom.js";
 import { attachZoomToolbar } from "./zoom-toolbar.js";
 import { attachCanvasEditor } from "./canvas-edit.js";
 import { isFlowchart, minimalChange } from "./flowchart-edit.js";
+import { factoryLink } from "./handoff.js";
 
 const STYLE_ID = "mf-embed-style";
 const CSS = `
@@ -42,7 +43,10 @@ const CSS = `
 .mf-embed-canvas svg { display: block; max-width: none !important; }
 .mf-embed-empty { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 12px; color: var(--mf-muted, #8b93a3); font-size: 0.9em; }
 .mf-embed-empty[hidden] { display: none; }
-.mf-embed-status { padding: 4px 10px 6px; font-size: 0.78em; color: var(--mf-muted, #8b93a3); }
+.mf-embed-foot { display: flex; align-items: baseline; gap: 10px; padding: 4px 10px 6px; font-size: 0.78em; }
+.mf-embed-status { flex: 1; min-width: 0; color: var(--mf-muted, #8b93a3); }
+.mf-embed-open { flex: none; color: var(--mf-link, inherit); text-decoration: underline; text-underline-offset: 2px; }
+.mf-embed-open[hidden] { display: none; }
 .mf-embed-status.mf-embed-error { color: var(--mf-error, #c62828); white-space: pre-wrap; }
 `;
 
@@ -76,7 +80,10 @@ function injectStyle(doc) {
  * diagram); `onExit(where)` when the writer leaves the editor with the keyboard
  * ("before": ↑ on the first line, "after": ↓ on the last line, or Esc);
  * `theme` and `config` (look, layout, curve, fontFamily) for mermaid;
- * `autofocus`; `stackBelow` (px width under which the panes stack, default 560).
+ * `autofocus`; `stackBelow` (px width under which the panes stack, default 560);
+ * `factoryUrl` (a Mermaid Factory's address, e.g. "https://mermaid.example") to
+ * show an "Open in Mermaid Factory" link that opens the code as a new diagram,
+ * named `title` if given.
  *
  * Returns { view, getSource, setSource, focus, destroy }. `setSource` doesn't
  * call `onChange`.
@@ -98,13 +105,26 @@ export function mountEditor(element, options = {}) {
         <div class="mf-embed-canvas"></div>
         <div class="mf-embed-empty" hidden>Type some Mermaid code to see the diagram here.</div>
       </div>
-      <div class="mf-embed-status" aria-live="polite"></div>
+      <div class="mf-embed-foot">
+        <div class="mf-embed-status" aria-live="polite"></div>
+        <a class="mf-embed-open" target="_blank" rel="noopener" hidden>Open in Mermaid Factory</a>
+      </div>
     </div>`;
   element.append(root);
   const preview = root.querySelector(".mf-embed-preview");
   const canvas = root.querySelector(".mf-embed-canvas");
   const status = root.querySelector(".mf-embed-status");
   const empty = root.querySelector(".mf-embed-empty");
+  // The link is made when it's used, so it carries the code as it is then.
+  const open = root.querySelector(".mf-embed-open");
+  if (options.factoryUrl) {
+    open.hidden = false;
+    open.href = options.factoryUrl;
+    const update = () => { open.href = factoryLink(getSource(), { base: options.factoryUrl, title: options.title }); };
+    open.addEventListener("pointerdown", update);
+    open.addEventListener("focus", update);
+    open.addEventListener("click", update);
+  }
 
   const atEdge = (where) => (view) => {
     const { main } = view.state.selection;

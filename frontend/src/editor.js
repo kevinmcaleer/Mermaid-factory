@@ -35,6 +35,7 @@ import { lazyThumb, thumbObserver } from "./thumbs.js";
 import { canConvert, convertDiagram } from "./convert.js";
 import { attachCanvasEditor } from "./canvas-edit.js";
 import { minimalChange } from "./flowchart-edit.js";
+import { readHandoff } from "./handoff.js";
 
 const $ = (sel) => document.querySelector(sel);
 const RENDER_DEBOUNCE_MS = 300;
@@ -54,6 +55,13 @@ const state = {
   shareToken: initial.share_token || null,
   saving: false,
 };
+// Code handed over by another page ("Open in Mermaid Factory").
+const handoff = state.id === null ? readHandoff(location.hash) : null;
+if (handoff) {
+  state.source = handoff.source;
+  if (handoff.title) state.title = handoff.title;
+  history.replaceState(null, "", location.pathname + location.search);
+}
 let saved = snapshot();
 if (state.id === null && state.source) {
   // A template that hasn't been saved yet counts as unsaved work.
@@ -414,6 +422,7 @@ divider.addEventListener("keydown", (e) => {
 // ------------------------------------------------------------ title, theme
 
 const titleInput = $("#title");
+titleInput.value = state.title;
 titleInput.addEventListener("input", () => {
   state.title = titleInput.value;
   changed();
