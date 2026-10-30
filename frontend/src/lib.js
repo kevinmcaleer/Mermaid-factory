@@ -13,6 +13,7 @@ export { mountEditor } from "./embed.js";
 export { attachCanvasEditor } from "./canvas-edit.js";
 export { flowchart, templates, detectType, buildConfig };
 export { mermaidLanguage as mermaidStreamLanguage } from "./mermaid-lang.js";
+export { mermaidStream as mermaidStreamParser } from "./mermaid-lang.js";
 export { factoryLink } from "./handoff.js";
 
 /** CodeMirror 6 extensions: the Mermaid highlighter with light and dark colours. */

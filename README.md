@@ -328,6 +328,8 @@ await MermaidTools.renderMermaid(code, {
 });
 
 MermaidTools.mermaidLanguage();          // CodeMirror 6 extensions for Mermaid highlighting
+MermaidTools.mermaidStreamParser;         // the same highlighter as a plain stream parser, for an editor
+                                          // with its own CodeMirror (markdown-editor's `codeLanguages`)
 await MermaidTools.exportSvg(code, { background: "#fff" });             // standalone SVG text
 await MermaidTools.exportPng(code, { scale: 2, background: "transparent" }); // PNG Blob
 MermaidTools.templates;                   // the gallery's starters: [{ slug, name, description, docs, source }]

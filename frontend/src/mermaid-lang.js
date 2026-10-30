@@ -29,7 +29,9 @@ const KEYWORDS = new Set([
   "BT", "RL", "LR", "axis", "curve", "max", "min", "set", "sets", "union",
 ]);
 
-const mermaidStream = {
+// The plain stream parser (no CodeMirror classes), for a host editor with its
+// own copy of CodeMirror to wrap in its own StreamLanguage.
+export const mermaidStream = {
   name: "mermaid",
   token(stream) {
     if (stream.eatSpace()) return null;
