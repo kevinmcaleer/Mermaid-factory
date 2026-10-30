@@ -312,6 +312,8 @@ const editor = MermaidTools.mountEditor(element, {
   theme: "default",                       // any mermaid theme
   config: { look: "neo" },                // look, layout, curve, fontFamily, themeVariables
   autofocus: true,
+  factoryUrl: "https://mermaid.example",  // optional: an "Open in Mermaid Factory" link
+  title: "Robot arm",                     // the new diagram's name there
 });
 editor.setSource(text);                   // doesn't call onChange
 editor.destroy();
@@ -329,6 +331,11 @@ MermaidTools.mermaidLanguage();          // CodeMirror 6 extensions for Mermaid 
 await MermaidTools.exportSvg(code, { background: "#fff" });             // standalone SVG text
 await MermaidTools.exportPng(code, { scale: 2, background: "transparent" }); // PNG Blob
 MermaidTools.templates;                   // the gallery's starters: [{ slug, name, description, docs, source }]
+
+// A link that opens code as a new, unsaved diagram in a Mermaid Factory. The code
+// rides in the fragment (#source=…), so it isn't sent to the server or limited in
+// length, and it survives logging in on the way.
+MermaidTools.factoryLink(code, { base: "https://mermaid.example", title: "Robot arm" });
 
 // Click-to-edit on a drawing you render yourself, and the source edits behind it.
 MermaidTools.attachCanvasEditor({ viewport, canvas, getSource, setSource }).refresh();
