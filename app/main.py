@@ -20,6 +20,9 @@ from .powertools import PowerTools
 from .security import SECURITY_HEADERS, RateLimiter, new_token
 from .web import STATIC_DIR, render
 
+# The pages between "Open in Mermaid Factory" and its editor (see frontend/src/handoff.js).
+OPENER_PATHS = frozenset({"/diagrams/new/edit", "/login"})
+
 access_log = logging.getLogger("mermaid_factory.access")
 log = logging.getLogger("mermaid_factory")
 
@@ -78,6 +81,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         except Exception:
             log.exception("unhandled error", extra={"request_id": request_id})
             raise
+        if request.url.path in OPENER_PATHS:
+            # A diagram opened from another page goes back through window.opener,
+            # which "same-origin" would cut on these pages.
+            response.headers["Cross-Origin-Opener-Policy"] = "unsafe-none"
         for name, value in SECURITY_HEADERS.items():
             response.headers.setdefault(name, value)
         response.headers["X-Request-ID"] = request_id

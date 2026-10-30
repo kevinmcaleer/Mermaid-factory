@@ -83,7 +83,8 @@ function injectStyle(doc) {
  * `autofocus`; `stackBelow` (px width under which the panes stack, default 560);
  * `factoryUrl` (a Mermaid Factory's address, e.g. "https://mermaid.example") to
  * show an "Open in Mermaid Factory" link that opens the code as a new diagram,
- * named `title` if given.
+ * named `title` if given; `onOpenInFactory(source)` opens it yourself instead
+ * (with openInFactory, so a save there comes back).
  *
  * Returns { view, getSource, setSource, focus, destroy }. `setSource` doesn't
  * call `onChange`.
@@ -123,7 +124,11 @@ export function mountEditor(element, options = {}) {
     const update = () => { open.href = factoryLink(getSource(), { base: options.factoryUrl, title: options.title }); };
     open.addEventListener("pointerdown", update);
     open.addEventListener("focus", update);
-    open.addEventListener("click", update);
+    open.addEventListener("click", (e) => {
+      if (!options.onOpenInFactory) return update();
+      e.preventDefault();
+      options.onOpenInFactory(getSource());
+    });
   }
 
   const atEdge = (where) => (view) => {

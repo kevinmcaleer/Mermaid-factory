@@ -35,7 +35,7 @@ import { lazyThumb, thumbObserver } from "./thumbs.js";
 import { canConvert, convertDiagram } from "./convert.js";
 import { attachCanvasEditor } from "./canvas-edit.js";
 import { minimalChange } from "./flowchart-edit.js";
-import { readHandoff } from "./handoff.js";
+import { SAVE, SAVED, readHandoff } from "./handoff.js";
 
 const $ = (sel) => document.querySelector(sel);
 const RENDER_DEBOUNCE_MS = 300;
@@ -102,7 +102,9 @@ function changed() {
 }
 
 window.addEventListener("beforeunload", (e) => {
-  if (isDirty()) {
+  // Opened from another page, what matters is whether it went back there.
+  const unsaved = handoff?.back ? state.source !== sentBack : isDirty();
+  if (unsaved) {
     e.preventDefault();
     e.returnValue = "";
   }
@@ -157,7 +159,7 @@ const view = new EditorView({
     extensions: [
       basicSetup,
       keymap.of([
-        { key: "Mod-s", preventDefault: true, run: () => (save(), true) },
+        { key: "Mod-s", preventDefault: true, run: () => (saveShortcut(), true) },
         indentWithTab,
       ]),
       mermaidLang(),
@@ -186,9 +188,10 @@ function setSource(text) {
 }
 
 document.addEventListener("keydown", (e) => {
-  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
+  // The code editor handles its own Ctrl/⌘+S (and prevents the default).
+  if (!e.defaultPrevented && (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "s") {
     e.preventDefault();
-    save();
+    saveShortcut();
   }
 });
 
@@ -638,6 +641,55 @@ function applyServer(d) {
   saved = snapshot();
   updateDirty();
   doRender();
+}
+
+// ------------------------------------------------- back to the page it came from
+
+// A diagram opened from another page ("Open in Mermaid Factory" with a way
+// back) saves there: the page that opened this tab (window.opener) gets the
+// code and answers whether it kept it. See handoff.js.
+let sentBack = handoff?.source ?? null;
+let pendingBack = null;
+let backTimer = 0;
+const backButton = $("#save-back-btn");
+if (handoff?.back) {
+  const { label } = handoff.back;
+  backButton.hidden = false;
+  backButton.textContent = `Save to ${label}`;
+  backButton.title = `Send the diagram back to ${label} (Ctrl/⌘+S)`;
+  $("#save-btn").classList.remove("btn-primary");
+  $("#save-btn").title = "Save a copy in Mermaid Factory";
+  backButton.addEventListener("click", () => saveBack());
+  window.addEventListener("message", (e) => {
+    const data = e.data;
+    if (e.origin !== handoff.back.origin || !data || data.type !== SAVED || data.ref !== handoff.back.ref) return;
+    clearTimeout(backTimer);
+    if (data.ok) {
+      sentBack = pendingBack ?? sentBack;
+      toast(`Saved to ${label}`);
+    } else {
+      toast(data.message || `${label} didn't take the diagram`, "error", 8000);
+    }
+  });
+}
+
+function saveShortcut() {
+  if (handoff?.back) saveBack();
+  else save();
+}
+
+function saveBack() {
+  const { origin, ref, label } = handoff.back;
+  const target = window.opener;
+  if (!target || target.closed) {
+    toast(`${label} is no longer open, so the diagram can't go back there. Save it here instead.`, "error", 8000);
+    return;
+  }
+  const source = state.source;
+  target.postMessage({ type: SAVE, ref, source, title: state.title }, origin);
+  clearTimeout(backTimer);
+  backTimer = setTimeout(() => toast(`No answer from ${label}. Is it still open?`, "error", 8000), 4000);
+  pendingBack = source; // counted as sent once the answer comes
 }
 
 async function save() {
