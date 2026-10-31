@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import {
   addConnectedNode,
   addNode,
+  deleteEdge,
+  listEdges,
+  readLink,
+  reverseEdge,
+  setEdge,
+  writeLink,
   classDefNames,
   nodeClass,
   nodeStyle,
@@ -192,4 +198,38 @@ test("sets and clears a node's own style properties", () => {
 test("deleting the last node with a preset removes its classDef", () => {
   const src = setNodeClass("flowchart TD\n  a --> b\n", "b", "Sky");
   assert.equal(deleteNode(src, "b"), "flowchart TD\n  a\n");
+});
+
+test("lists arrows with the ids mermaid draws them with", () => {
+  const src = "flowchart LR\n    a[A] -- yes --> b --> c\n    a & b -.-> d\n    x e1@==>|go| y\n    a --> b\n";
+  assert.deepEqual(
+    listEdges(src).map((e) => [e.id, e.line, e.end, e.label, e.simple]),
+    [
+      ["L_a_b_0", "solid", "arrow", "yes", true],
+      ["L_b_c_0", "solid", "arrow", "", true],
+      ["L_a_d_0", "dotted", "arrow", "", false],
+      ["L_b_d_0", "dotted", "arrow", "", false],
+      ["e1", "thick", "arrow", "go", true],
+      ["L_a_b_1", "solid", "arrow", "", true],
+    ],
+  );
+});
+
+test("reads and writes every link form", () => {
+  const cases = {
+    "---": "---", "-->": "-->", "<-->": "<-->", "-.->": "-.->", "-.-": "-.-", "==>": "==>", "===": "===",
+    "==o": "==o", "--x": "--x", "~~~": "~~~", "-->|hi|": "-->|hi|", "-- hi there -->": "-->|hi there|",
+    "== big ==>": "==>|big|", "-. dots .->": "-.->|dots|", "e2@-->": "e2@-->",
+  };
+  for (const [from, to] of Object.entries(cases)) assert.equal(writeLink(readLink(from)), to, from);
+});
+
+test("changes, reverses and deletes arrows", () => {
+  const src = "flowchart LR\n    a[A] -->|order| b[B] --> c[C]\n";
+  assert.equal(setEdge(src, "L_b_c_0", { line: "dotted", end: "circle", label: "then" }), "flowchart LR\n    a[A] -->|order| b[B] -.-o|then| c[C]\n");
+  assert.equal(setEdge(src, "L_a_b_0", { label: "" }), "flowchart LR\n    a[A] --> b[B] --> c[C]\n");
+  assert.equal(reverseEdge(src, "L_b_c_0"), "flowchart LR\n    a[A] -->|order| b[B]\n    c[C] --> b\n");
+  assert.equal(reverseEdge("flowchart TD\n  a[A] --> b\n", "L_a_b_0"), "flowchart TD\n  b --> a[A]\n");
+  assert.equal(deleteEdge(src, "L_a_b_0"), "flowchart LR\n    a[A]\n    b[B] --> c[C]\n");
+  assert.equal(deleteEdge("flowchart TD\n  a & b --> c\n", "L_a_c_0"), null);
 });

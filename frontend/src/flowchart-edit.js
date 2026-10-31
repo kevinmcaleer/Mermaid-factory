@@ -422,6 +422,7 @@ const ID_RE = /\w+(?:-\w+)*/y;
 function parseChain(text) {
   const groups = [];
   const links = [];
+  const linkAt = [];
   let i = /^\s*/.exec(text)[0].length;
   const skipSpace = () => {
     while (i < text.length && /\s/.test(text[i])) i++;
@@ -453,13 +454,15 @@ function parseChain(text) {
     const link = LINK_RE.exec(text);
     if (!link) break;
     links.push(link[0].trim());
+    const lead = link[0].length - link[0].trimStart().length;
+    linkAt.push({ from: i + lead, to: i + lead + link[0].trim().length });
     i += link[0].length;
   }
   skipSpace();
   if (text[i] === ";") i++;
   skipSpace();
   if (i < text.length && !text.startsWith("%%", i)) return null;
-  return { groups, links };
+  return { groups, links, linkAt };
 }
 
 /**
@@ -695,4 +698,172 @@ export function setNodeStyle(source, id, changes) {
   const edits = rest.map((l) => removeLineEdit(source, l));
   edits.push(body ? { from: first.from, to: first.from + first.text.length, insert: `${m[1]}${id}${m[3]}${body}${m[5]}` } : removeLineEdit(source, first));
   return applyEdits(source, edits);
+}
+
+// ------------------------------------------------------------------- arrows
+
+/** Line styles and arrow ends an arrow can have. */
+export const LINE_STYLES = ["solid", "dotted", "thick", "invisible"];
+export const ARROW_ENDS = ["arrow", "none", "circle", "cross", "both"];
+
+/** What a link token says: its line style, arrow end, label and edge id. */
+export function readLink(raw) {
+  let text = raw.trim();
+  let edgeId = null;
+  const idm = /^(\w+)@/.exec(text);
+  if (idm) {
+    edgeId = idm[1];
+    text = text.slice(idm[0].length);
+  }
+  let label = "";
+  const pipe = /\|([^|]*)\|\s*$/.exec(text);
+  if (pipe) {
+    label = pipe[1];
+    text = text.slice(0, pipe.index).trim();
+  }
+  if (/^~{3,}$/.test(text)) return { line: "invisible", end: "none", label: "", edgeId };
+  // Text inside the link: `-- text -->`, `== text ==>`, `-. text .->`.
+  const inner = /^([xo<]?)(--|==|-\.)\s+(.*?)\s+(-{2,}|={2,}|\.+-)([-=xo>]?)$/.exec(text);
+  let start = "";
+  let end = "";
+  let line = "solid";
+  if (inner) {
+    start = inner[1];
+    label = inner[3];
+    line = inner[2] === "==" ? "thick" : inner[2] === "-." ? "dotted" : "solid";
+    end = inner[5];
+  } else {
+    const m = /^([xo<]?)(.*?)([xo>]?)$/.exec(text);
+    start = m[1];
+    end = m[3];
+    line = m[2].includes("=") ? "thick" : m[2].includes(".") ? "dotted" : "solid";
+    // `---` ends in a plain dash; only > o x are ends.
+  }
+  const endName = { ">": "arrow", o: "circle", x: "cross" }[end] || "none";
+  return { line, end: start === "<" && end === ">" ? "both" : endName, label: readText(label), edgeId };
+}
+
+/** Writes a link token: `-->`, `-.->|text|`, `==o`, `~~~`, … */
+export function writeLink({ line = "solid", end = "arrow", label = "", edgeId = null }) {
+  const id = edgeId ? `${edgeId}@` : "";
+  if (line === "invisible") return `${id}~~~`;
+  const tail = { arrow: ">", both: ">", circle: "o", cross: "x", none: "" }[end] ?? ">";
+  const head = end === "both" ? "<" : "";
+  let body;
+  if (line === "dotted") body = tail ? `-.-${tail}` : "-.-";
+  else if (line === "thick") body = tail ? `==${tail}` : "===";
+  else body = tail ? `--${tail}` : "---";
+  const text = String(label || "").replace(/[|\n]/g, " ").trim();
+  const lab = text ? `|${/^[\p{L}\p{N} _.,:;!?'+*&-]*$/u.test(text) ? text : `"${text.replace(/"/g, "#quot;")}"`}|` : "";
+  return `${id}${head}${body}${lab}`;
+}
+
+/**
+ * Every arrow in the flowchart, in order, with the id mermaid gives its drawn
+ * path (`L_a_b_0`, or the edge id from `e1@-->`) and where its link sits.
+ */
+export function listEdges(source) {
+  const edges = [];
+  const counts = new Map();
+  let seenHeader = false;
+  for (const line of bodyLines(source)) {
+    if (!seenHeader) {
+      seenHeader = HEADER_RE.test(line.text);
+      continue;
+    }
+    if (SKIP_LINE_RE.test(line.text)) continue;
+    const chain = parseChain(line.text);
+    if (!chain) continue;
+    chain.links.forEach((raw, k) => {
+      const info = readLink(raw);
+      for (const a of chain.groups[k]) {
+        for (const b of chain.groups[k + 1]) {
+          const base = `L_${a.id}_${b.id}_`;
+          const n = counts.get(base) || 0;
+          counts.set(base, n + 1);
+          edges.push({
+            id: info.edgeId || `${base}${n}`,
+            from: a.id,
+            to: b.id,
+            ...info,
+            line: info.line,
+            raw,
+            source: { line, chain, index: k, from: line.from + chain.linkAt[k].from, to: line.from + chain.linkAt[k].to },
+            simple: chain.groups[k].length === 1 && chain.groups[k + 1].length === 1,
+          });
+        }
+      }
+    });
+  }
+  return edges;
+}
+
+/** The arrow whose drawn path has id `edgeId` (as listEdges names them). */
+export function findEdge(source, edgeId) {
+  return listEdges(source).find((e) => e.id === edgeId) || null;
+}
+
+/** Changes an arrow's label, line style or end. Arrows sharing an `&` link change together. */
+export function setEdge(source, edgeId, changes) {
+  const edge = findEdge(source, edgeId);
+  if (!edge) return source;
+  const next = { line: edge.line, end: edge.end, label: edge.label, edgeId: edge.edgeId, ...changes };
+  const { from, to } = edge.source;
+  return source.slice(0, from) + writeLink(next) + source.slice(to);
+}
+
+// Rewrites a chain line without link `k`, putting `extra` lines after it.
+function splitChainAt(source, edge, extra = [], { dropLeft = false, dropRight = false } = {}) {
+  const { line, chain, index: k } = edge.source;
+  const all = scan(source);
+  const elsewhere = (id) => all.some((t) => t.id === id && t.line.from !== line.from);
+  const write = (groups, links) => {
+    if (groups.length === 1) {
+      const kept = groups[0].filter((n) => n.defined || !elsewhere(n.id));
+      return kept.length ? kept.map((n) => n.raw).join(" & ") : null;
+    }
+    return groups.map((g, i) => (i ? `${links[i - 1]} ` : "") + g.map((n) => n.raw).join(" & ")).join(" ");
+  };
+  const indent = /^\s*/.exec(line.text)[0];
+  const parts = [
+    dropLeft ? null : write(chain.groups.slice(0, k + 1), chain.links.slice(0, k)),
+    dropRight ? null : write(chain.groups.slice(k + 1), chain.links.slice(k + 1)),
+    ...extra,
+  ].filter(Boolean);
+  if (!parts.length) {
+    const to = Math.min(source.length, line.from + line.text.length + 1);
+    return source.slice(0, line.from) + source.slice(to);
+  }
+  return source.slice(0, line.from) + parts.map((p) => indent + p).join("\n") + source.slice(line.from + line.text.length);
+}
+
+/** Removes one arrow. Null when it shares an `&` link with others. */
+export function deleteEdge(source, edgeId) {
+  const edge = findEdge(source, edgeId);
+  if (!edge) return source;
+  if (!edge.simple) return null;
+  return splitChainAt(source, edge);
+}
+
+/** Points an arrow the other way. Null when it shares an `&` link with others. */
+export function reverseEdge(source, edgeId) {
+  const edge = findEdge(source, edgeId);
+  if (!edge) return source;
+  if (!edge.simple) return null;
+  const { chain, index: k } = edge.source;
+  if (chain.groups.length === 2) {
+    // `a --> b` (definitions and all) becomes `b --> a`.
+    const { line } = edge.source;
+    const indent = /^\s*/.exec(line.text)[0];
+    const rest = line.text.trimEnd().match(/;?\s*(%%.*)?$/)[0];
+    const text = `${indent}${chain.groups[1][0].raw} ${chain.links[0]} ${chain.groups[0][0].raw}${rest ? ` ${rest.trim()}` : ""}`;
+    return source.slice(0, line.from) + text.trimEnd() + source.slice(line.from + line.text.length);
+  }
+  // A node left on its own by the split moves, definition and all, onto the reversed line.
+  const dropLeft = k === 0;
+  const dropRight = k === chain.groups.length - 2;
+  const a = chain.groups[k][0];
+  const b = chain.groups[k + 1][0];
+  const line = `${dropRight ? b.raw : b.id} ${chain.links[k]} ${dropLeft ? a.raw : a.id}`;
+  return splitChainAt(source, edge, [line], { dropLeft, dropRight });
 }

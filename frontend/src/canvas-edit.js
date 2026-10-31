@@ -3,8 +3,15 @@
 // (see flowchart-edit.js) and the host re-renders as it would for typing.
 
 import {
+  ARROW_ENDS,
+  LINE_STYLES,
   SHAPES,
   STYLE_PRESETS,
+  deleteEdge,
+  findEdge,
+  listEdges,
+  reverseEdge,
+  setEdge,
   classDefNames,
   nodeClass,
   nodeStyle,
@@ -93,6 +100,11 @@ const CSS = `
 .mf-node-pop-row button.mf-opt { height: 22px; min-width: 26px; padding: 0 5px; border: 1px solid var(--mf-pop-border, var(--border, #d9dde4)); border-radius: 5px; background: none; font-size: 11.5px !important; }
 .mf-node-pop-row button.mf-opt[aria-pressed="true"] { border-color: var(--mf-select, #2563eb); background: color-mix(in srgb, var(--mf-select, #2563eb) 12%, transparent); }
 .mf-node-pop-row svg { width: 22px; height: 10px; stroke: currentColor; stroke-width: 2; }
+.mf-canvas-edit .mf-edge-hit { fill: none !important; stroke: transparent !important; stroke-width: 14px !important; pointer-events: stroke; cursor: pointer; marker-start: none !important; marker-end: none !important; }
+.mf-canvas-edit .edgeLabel [data-id] { cursor: pointer; }
+.mf-canvas-edit path.mf-edge-selected { stroke: var(--mf-select, #2563eb) !important; }
+.mf-canvas-edit .mf-edge-hit:hover + path, .mf-canvas-edit path:has(+ .mf-edge-hit:hover) { stroke: var(--mf-select, #2563eb) !important; }
+.mf-edge-pop .mf-node-pop-row > span { flex-basis: 44px; margin: 0; }
 .mf-node-pop-note { margin-top: 6px; font-size: 12px; color: var(--mf-danger, #c62828); }
 .mf-node-pop-note:empty { display: none; }
 /* The "+" handles on each side of a shape: click to add, drag to connect. */
@@ -142,6 +154,21 @@ const BORDERS = [
 ];
 const borderOf = (st) =>
   st["stroke-width"] ? "thick" : st["stroke-dasharray"] === "6 4" ? "dashed" : st["stroke-dasharray"] === "2 3" ? "dotted" : st["stroke-dasharray"] ? "" : "solid";
+
+const LINE_ICONS = {
+  solid: '<line x1="1" y1="5" x2="21" y2="5"/>',
+  dotted: '<line x1="1" y1="5" x2="21" y2="5" stroke-dasharray="2 2.5"/>',
+  thick: '<line x1="1" y1="5" x2="21" y2="5" stroke-width="4"/>',
+  invisible: '<line x1="1" y1="5" x2="21" y2="5" stroke-dasharray="1 3" opacity=".35"/>',
+};
+const END_ICONS = {
+  arrow: '<line x1="1" y1="5" x2="18" y2="5"/><path d="M15 1.5 21 5l-6 3.5Z" fill="currentColor" stroke="none"/>',
+  none: '<line x1="1" y1="5" x2="21" y2="5"/>',
+  circle: '<line x1="1" y1="5" x2="15" y2="5"/><circle cx="18" cy="5" r="3" fill="none"/>',
+  cross: '<line x1="1" y1="5" x2="16" y2="5"/><path d="M15 2l6 6M21 2l-6 6"/>',
+  both: '<line x1="5" y1="5" x2="17" y2="5"/><path d="M15 1.5 21 5l-6 3.5ZM7 1.5 1 5l6 3.5Z" fill="currentColor" stroke="none"/>',
+};
+const LABELS = { solid: "Solid", dotted: "Dotted", thick: "Thick", invisible: "Invisible (layout only)", arrow: "Arrow", none: "No arrow", circle: "Circle end", cross: "Cross end", both: "Arrows both ways" };
 
 const PLUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9"/></svg>';
 // Which side of a shape the flow comes from, by direction.
@@ -291,6 +318,133 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     pop.querySelectorAll("button[data-font]").forEach((b) => b.setAttribute("aria-pressed", String(st[b.dataset.font] === b.dataset.on)));
   }
   viewport.append(pop);
+
+  // The arrow editor: label, line, end, reverse, delete.
+  let selectedEdge = null;
+  const epop = doc.createElement("div");
+  epop.className = "mf-node-pop mf-edge-pop";
+  epop.hidden = true;
+  epop.setAttribute("role", "dialog");
+  epop.setAttribute("aria-label", "Edit arrow");
+  const opts = (list, icons, attr) =>
+    list.map((v) => `<button type="button" class="mf-opt" data-${attr}="${v}" title="${LABELS[v]}" aria-label="${LABELS[v]}"><svg viewBox="0 0 22 10" aria-hidden="true">${icons[v]}</svg></button>`).join("");
+  epop.innerHTML = `
+    <div class="mf-node-pop-head"><span></span><button type="button" class="mf-node-pop-close" title="Close (Esc)" aria-label="Close">×</button></div>
+    <input class="mf-node-pop-text" type="text" aria-label="Label" placeholder="Label (optional)" spellcheck="true">
+    <div class="mf-node-pop-row"><span>Line</span>${opts(LINE_STYLES, LINE_ICONS, "line")}</div>
+    <div class="mf-node-pop-row"><span>End</span>${opts(ARROW_ENDS, END_ICONS, "end")}</div>
+    <div class="mf-node-pop-add">
+      <button type="button" data-reverse title="Point the arrow the other way">⇄ Reverse</button>
+      <button type="button" class="mf-node-pop-delete" data-delete title="Delete this arrow (Delete)">Delete</button>
+    </div>
+    <div class="mf-node-pop-note" role="status"></div>`;
+  viewport.append(epop);
+  const ehead = epop.querySelector(".mf-node-pop-head span");
+  const einput = epop.querySelector(".mf-node-pop-text");
+  const enote = epop.querySelector(".mf-node-pop-note");
+  for (const type of ["pointerdown", "mousedown", "click", "dblclick", "wheel", "keydown"]) {
+    epop.addEventListener(type, (e) => e.stopPropagation());
+  }
+  epop.querySelector(".mf-node-pop-close").addEventListener("click", () => closeEdge());
+  epop.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" || (e.key === "Enter" && e.target === einput)) {
+      e.preventDefault();
+      closeEdge();
+    }
+  });
+  einput.addEventListener("input", () => {
+    if (selectedEdge) change(setEdge(getSource(), selectedEdge, { label: einput.value }));
+  });
+  epop.addEventListener("click", (e) => {
+    const b = e.target.closest("button");
+    if (!b || !selectedEdge) return;
+    if (b.dataset.line) change(setEdge(getSource(), selectedEdge, { line: b.dataset.line }));
+    else if (b.dataset.end) change(setEdge(getSource(), selectedEdge, { end: b.dataset.end }));
+    else if (b.hasAttribute("data-delete")) return removeEdge();
+    else if (b.hasAttribute("data-reverse")) {
+      const edge = findEdge(getSource(), selectedEdge);
+      const next = reverseEdge(getSource(), selectedEdge);
+      if (next === null) return (enote.textContent = "This arrow is shared with others (a & b). Please change it in the code.");
+      change(next);
+      // Its drawn id follows the new direction.
+      const again = edge && findEdgeBetween(edge.to, edge.from, edge.edgeId, edge.source.from);
+      return again ? openEdge(again) : closeEdge();
+    }
+    syncEdge();
+  });
+
+  // After reversing, the arrow's drawn id changes: find it near where it was.
+  function findEdgeBetween(from, to, edgeId, near) {
+    if (edgeId) return edgeId;
+    const matches = listEdges(getSource()).filter((e) => e.from === from && e.to === to);
+    matches.sort((a, b) => Math.abs(a.source.from - near) - Math.abs(b.source.from - near));
+    return matches[0]?.id || null;
+  }
+
+  function removeEdge() {
+    if (!selectedEdge) return;
+    const next = deleteEdge(getSource(), selectedEdge);
+    if (next === null) {
+      enote.textContent = "This arrow is shared with others (a & b). Please change it in the code.";
+      return;
+    }
+    closeEdge();
+    change(next);
+  }
+
+  function edgeElements(id) {
+    return [...canvas.querySelectorAll("path[data-edge]")].filter((p) => p.dataset.id === id);
+  }
+
+  function syncEdge() {
+    const edge = selectedEdge && findEdge(getSource(), selectedEdge);
+    if (!edge) return closeEdge();
+    ehead.textContent = `Arrow ${edge.from} → ${edge.to}`;
+    if (doc.activeElement !== einput) einput.value = edge.label;
+    epop.querySelectorAll("button[data-line]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.line === edge.line)));
+    epop.querySelectorAll("button[data-end]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.end === edge.end)));
+    canvas.querySelectorAll("path.mf-edge-selected").forEach((p) => p.classList.remove("mf-edge-selected"));
+    const els = edgeElements(selectedEdge);
+    els.forEach((p) => p.classList.add("mf-edge-selected"));
+    const label = [...canvas.querySelectorAll(".edgeLabel [data-id]")].find((l) => l.dataset.id === selectedEdge);
+    const anchor = label && label.getBoundingClientRect().width ? label : els[0];
+    if (anchor) placePop(epop, anchor);
+  }
+
+  function openEdge(id) {
+    if (!findEdge(getSource(), id)) return;
+    close();
+    selectedEdge = id;
+    enote.textContent = "";
+    epop.hidden = false;
+    syncEdge();
+  }
+
+  function closeEdge() {
+    selectedEdge = null;
+    epop.hidden = true;
+    canvas.querySelectorAll("path.mf-edge-selected").forEach((p) => p.classList.remove("mf-edge-selected"));
+  }
+
+  // Thin lines are hard to hit: lay a wide invisible copy over each arrow.
+  function addEdgeHitAreas() {
+    for (const p of canvas.querySelectorAll("path[data-edge]")) {
+      if (p.nextElementSibling?.classList.contains("mf-edge-hit")) continue;
+      const hit = p.cloneNode(false);
+      hit.removeAttribute("id");
+      hit.removeAttribute("marker-start");
+      hit.removeAttribute("marker-end");
+      hit.removeAttribute("data-edge");
+      hit.removeAttribute("style");
+      hit.setAttribute("class", "mf-edge-hit");
+      p.after(hit);
+    }
+  }
+
+  function edgeIdAt(target) {
+    const hit = target.closest?.(".mf-edge-hit, path[data-edge], .edgeLabel [data-id]");
+    return hit && canvas.contains(hit) ? hit.dataset.id || null : null;
+  }
 
   // "+" handles on the four sides of the shape under the pointer (or the selected one).
   const handles = {};
@@ -547,6 +701,10 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
   }
 
   function place(el) {
+    placePop(pop, el);
+  }
+
+  function placePop(pop, el) {
     if (!el) return;
     const vr = viewport.getBoundingClientRect();
     const nr = el.getBoundingClientRect();
@@ -570,6 +728,7 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
   function open(id, { focusText = false } = {}) {
     const node = findNode(getSource(), id);
     if (!node) return close();
+    if (selectedEdge) closeEdge();
     selected = id;
     note.textContent = "";
     head.textContent = `Shape ${id}`;
@@ -597,24 +756,30 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
   const onDown = (e) => {
     // Not on the popover or other controls over the drawing (the zoom toolbar).
     if (e.button !== 0 || pop.contains(e.target) || e.target.closest?.("[data-mf-ui]")) return (down = null);
+    if (epop.contains(e.target)) return (down = null);
     const g = e.target.closest?.("g.node");
-    down = { x: e.clientX, y: e.clientY, id: g && canvas.contains(g) ? nodeIdFromElement(g) : null };
+    const id = g && canvas.contains(g) ? nodeIdFromElement(g) : null;
+    down = { x: e.clientX, y: e.clientY, id, edge: id ? null : edgeIdAt(e.target) };
   };
   const onUp = (e) => {
     if (!down) return;
     const moved = Math.hypot(e.clientX - down.x, e.clientY - down.y) > 4;
-    const { id } = down;
+    const { id, edge } = down;
     down = null;
     if (moved || !isFlowchart(getSource())) return;
     if (id) open(id);
-    else if (selected) close();
+    else if (edge) openEdge(edge);
+    else {
+      if (selected) close();
+      if (selectedEdge) closeEdge();
+    }
   };
   // Capture, so this sees the press before pan/zoom takes the pointer.
   viewport.addEventListener("pointerdown", onDown, true);
   viewport.addEventListener("pointerup", onUp, true);
   // A click on a node shouldn't also count as a click on whatever hosts the drawing.
   const onClick = (e) => {
-    if (e.target.closest?.("g.node") && isFlowchart(getSource())) e.stopPropagation();
+    if ((e.target.closest?.("g.node") || edgeIdAt(e.target)) && isFlowchart(getSource())) e.stopPropagation();
   };
   viewport.addEventListener("click", onClick, true);
   // Double-click a shape to type its text straight away.
@@ -628,10 +793,11 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
   viewport.addEventListener("dblclick", onDblClick, true);
   // Delete or Backspace removes the selected shape, unless the writer is typing.
   const onKey = (e) => {
-    if (!selected || pop.hidden || !["Delete", "Backspace", "Escape"].includes(e.key)) return;
+    if (!(selected || selectedEdge) || !["Delete", "Backspace", "Escape"].includes(e.key)) return;
     const t = doc.activeElement;
     if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
     e.preventDefault();
+    if (selectedEdge) return e.key === "Escape" ? closeEdge() : removeEdge();
     if (e.key === "Escape") close();
     else removeSelected();
   };
@@ -641,7 +807,12 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     /** Call after the drawing is replaced. */
     refresh() {
       syncAddButton();
+      addEdgeHitAreas();
       showHandles();
+      if (selectedEdge) {
+        if (!isFlowchart(getSource())) closeEdge();
+        else syncEdge();
+      }
       if (!selected) return;
       if (!isFlowchart(getSource())) return close();
       const node = findNode(getSource(), selected);
@@ -670,6 +841,7 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
       doc.removeEventListener("keydown", onKey);
       viewport.classList.remove("mf-canvas-edit");
       pop.remove();
+      epop.remove();
       addButton.remove();
       dragLine.remove();
       for (const h of Object.values(handles)) h.remove();
