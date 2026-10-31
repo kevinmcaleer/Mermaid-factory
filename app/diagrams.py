@@ -36,6 +36,8 @@ THEMES = (
 )
 CONFIG_KEYS = {
     "look": {"classic", "handDrawn", "neo"},
+    # The editor's background: none (absent), or blue / black blueprint paper.
+    "background": {"blueprint", "blueprint-dark"},
     "layout": {"dagre", "elk"},
     "curve": {
         "basis",

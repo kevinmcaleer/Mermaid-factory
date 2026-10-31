@@ -23,7 +23,7 @@
 const FENCE = /^---[ \t]*$/;
 const CONFIG_LINE = /^config:[ \t]*(?:#.*)?$/;
 const KEY_LINE = /^([ \t]*)([A-Za-z_][\w-]*):(?:[ \t]+(.*?))?[ \t]*$/;
-const SCALAR_KEYS = ["theme", "look", "layout", "fontFamily"];
+const SCALAR_KEYS = ["theme", "look", "layout", "fontFamily", "background"];
 
 const indentOf = (line) => /^[ \t]*/.exec(line)[0].length;
 const isBlank = (line) => !line.trim() || line.trim().startsWith("#");
@@ -92,7 +92,7 @@ function children(lines, at) {
 /**
  * Takes the theme and style settings out of the code's front matter.
  * Returns { source, theme, config } where theme is null when the code
- * doesn't set one and config has look/layout/curve/fontFamily as set.
+ * doesn't set one and config has look/layout/curve/fontFamily/background as set.
  */
 export function liftStyle(source) {
   const none = { source, theme: null, config: {} };
@@ -141,7 +141,7 @@ export function withStyle(source, theme, config = {}) {
   const base = lifted.source;
   const scalars = [];
   if (theme && theme !== "default") scalars.push(["theme", theme]);
-  for (const key of ["look", "layout", "fontFamily"]) if (config[key]) scalars.push([key, config[key]]);
+  for (const key of ["look", "layout", "fontFamily", "background"]) if (config[key]) scalars.push([key, config[key]]);
   const curve = config.curve || null;
   if (!scalars.length && !curve) return base;
 
