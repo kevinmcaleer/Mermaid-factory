@@ -227,7 +227,7 @@ export function mountEditor(element, options = {}) {
     status.textContent = err
       ? errorMessage(err)
       : isFlowchart(source)
-        ? "Click a shape to change its text or shape, or to add a shape joined to it."
+        ? "Click a shape to edit it. Click its + to add a shape, or drag the + onto another shape to connect them."
         : "";
   }
 
