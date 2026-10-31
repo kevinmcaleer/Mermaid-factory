@@ -7,7 +7,10 @@
 //   series (pie, xychart): labelled numbers
 // Graph and tree convert into each other; series only convert among
 // themselves. Anything else returns null and the caller falls back to the
-// starter template. Comments, styling and type-specific details are dropped.
+// starter template. Comments, styling and type-specific details are dropped,
+// but the layout direction is carried where both types have one.
+// The output is kept compact: nodes are declared on their first edge, and
+// labels are only quoted when Mermaid needs the quotes.
 // Pure functions only (no DOM), so this runs in tests too.
 
 const FAMILY = {
@@ -31,9 +34,15 @@ export function canConvert(from, to) {
   return a === b || (a !== "series" && b !== "series");
 }
 
+const DIRECTIONS = new Set(["TB", "TD", "BT", "RL", "LR"]);
+
 /** Convert the diagram body (no front matter) from one type to another.
- *  Returns the new code, or null when there's nothing to carry over. */
-export function convertDiagram(body, from, to) {
+ *  Returns the new code, or null when there's nothing to carry over.
+ *  `hints` fills in what the source type can't carry, for example when a
+ *  flowchart went through a mindmap and back:
+ *    direction: "LR" etc., used when the source has none
+ *    keyword:   "graph" or "flowchart", the flowchart header to write */
+export function convertDiagram(body, from, to, hints = {}) {
   if (!canConvert(from, to)) return null;
   const lines = cleanLines(body);
   const model = PARSERS[from](lines);
@@ -43,7 +52,37 @@ export function convertDiagram(body, from, to) {
   else if (target === "tree") input = graphToTree(model);
   else input = treeToGraph(model);
   if (isEmpty(input)) return null;
-  return WRITERS[to](input);
+  const direction = model.direction || (DIRECTIONS.has(hints.direction) ? hints.direction : "");
+  const keyword = hints.keyword === "graph" ? "graph" : "flowchart";
+  return WRITERS[to](input, { direction, keyword });
+}
+
+/** The layout direction a diagram sets, from a flowchart header
+ *  (`graph LR`) or a `direction LR` line; "" when it sets none. */
+export function diagramDirection(body) {
+  const lines = cleanLines(body);
+  return headerDirection(lines.header) || directionLine(lines);
+}
+
+/** "graph" when a flowchart uses the older `graph` header, else "flowchart". */
+export function flowchartKeyword(body) {
+  return /^graph\b/.test(cleanLines(body).header) ? "graph" : "flowchart";
+}
+
+function headerDirection(header) {
+  const m = /^(?:flowchart|graph)(?:-elk)?\s+(TB|TD|BT|RL|LR)\b/.exec(header);
+  return m ? m[1] : "";
+}
+
+/** The first top-level `direction X` line (nested ones belong to subgraphs). */
+function directionLine(lines) {
+  const indents = lines.filter((l) => l.trim()).map((l) => l.length - l.trimStart().length);
+  const top = indents.length ? Math.min(...indents) : 0;
+  for (const l of lines) {
+    const m = /^\s*direction\s+(TB|TD|BT|RL|LR)\b/.exec(l);
+    if (m && l.length - l.trimStart().length === top) return m[1];
+  }
+  return "";
 }
 
 function isEmpty(model) {
@@ -145,6 +184,13 @@ const plain = (s) =>
 
 /** Make a label safe inside double quotes. */
 const quoted = (s) => `"${plain(s).replace(/"/g, "#quot;")}"`;
+/** A flowchart label as written inside a shape or `|edge label|`: bare
+ *  when Mermaid reads it as plain text, quoted only when it has to be. */
+const flowLabel = (s) => {
+  const text = plain(s);
+  const risky = /[[\](){}"|;#&<>`]|--|==|-\.|\.-/.test(text) || /^[/\\@:]|[/\\]$/.test(text);
+  return risky ? quoted(text) : text;
+};
 /** Make a label safe as bare text: no brackets, colons or quotes. */
 const bare = (s) =>
   plain(s)
@@ -241,6 +287,7 @@ const LINK_RE =
 function parseFlowchart(lines) {
   const g = newGraph();
   g.title = titleLine(lines);
+  g.direction = headerDirection(lines.header);
   const skip = /^(style|classDef|class|click|linkStyle|direction|end|accTitle|accDescr)\b/;
   for (const raw of lines) {
     for (let stmt of raw.split(";")) {
@@ -280,6 +327,7 @@ function parseFlowStatement(g, stmt) {
 function parseState(lines) {
   const g = newGraph();
   g.title = titleLine(lines);
+  g.direction = directionLine(lines);
   let inNote = false;
   const endpoint = (raw, side) => {
     const name = raw.trim().replace(/:::[\w-]+$/, "");
@@ -347,6 +395,7 @@ const CLASS_ARROW = /^(\S+?)\s*(?:"[^"]*"\s*)?(<\|--|--\|>|\*--|--\*|o--|--o|<--
 function parseClass(lines) {
   const g = newGraph();
   g.title = titleLine(lines);
+  g.direction = directionLine(lines);
   let depth = 0;
   const name = (s) => s.replace(/~[^~]*~/g, "").replace(/:::[\w-]+$/, "");
   for (const raw of lines) {
@@ -372,6 +421,7 @@ function parseClass(lines) {
 function parseEr(lines) {
   const g = newGraph();
   g.title = titleLine(lines);
+  g.direction = directionLine(lines);
   let inBody = false;
   const entity = (s) => {
     const m = /^"?([^"[\s]+)"?(?:\[\s*"?([^\]"]*)"?\s*\])?$/.exec(s.trim());
@@ -501,24 +551,36 @@ const PARSERS = {
 const indent = (s) => `    ${s}`;
 const withTitle = (head, title) => [head, ...(title ? [indent(`title ${bare(title)}`)] : [])];
 
-function writeFlowchart(g) {
+function writeFlowchart(g, opts = {}) {
   const id = idMapper(["end", "graph", "subgraph", "style", "class", "classDef", "click", "linkStyle", "default", "flowchart"]);
-  const out = ["flowchart TD"];
-  for (const node of g.nodes.values()) {
-    if (node.kind === "start" || node.kind === "end") out.push(indent(`${id(node.id)}((${quoted(node.label)}))`));
-    else out.push(indent(`${id(node.id)}[${quoted(node.label)}]`));
-  }
+  const out = [`${opts.keyword || "flowchart"} ${opts.direction || "TD"}`];
+  // Each node is declared where it's first used, so most read like `a[Buy] --> b[Print]`.
+  const declared = new Set();
+  const ref = (key) => {
+    const node = g.nodes.get(key);
+    const safe = id(key);
+    if (declared.has(key)) return safe;
+    declared.add(key);
+    if (node.kind === "start" || node.kind === "end") return `${safe}((${flowLabel(node.label)}))`;
+    return plain(node.label) === safe ? safe : `${safe}[${flowLabel(node.label)}]`;
+  };
+  const used = new Set(g.edges.flatMap((e) => [e.from, e.to]));
+  for (const key of g.nodes.keys()) if (!used.has(key)) out.push(indent(ref(key)));
   for (const e of g.edges) {
-    const label = plain(e.label) ? `|${quoted(e.label)}|` : "";
-    out.push(indent(`${id(e.from)} -->${label} ${id(e.to)}`));
+    const label = plain(e.label) ? `|${flowLabel(e.label)}|` : "";
+    const from = ref(e.from);
+    out.push(indent(`${from} -->${label} ${ref(e.to)}`));
   }
   return out.join("\n") + "\n";
 }
 
-function writeState(g) {
+/** `direction X` for the types that take it, when the source had one. */
+const directionLines = (opts) => (opts.direction ? [indent(`direction ${opts.direction === "TD" ? "TB" : opts.direction}`)] : []);
+
+function writeState(g, opts = {}) {
   const id = idMapper(["state", "note", "end", "direction", "class", "classDef", "style"]);
   const ref = (key) => (g.nodes.get(key).kind === "start" || g.nodes.get(key).kind === "end" ? "[*]" : id(key));
-  const out = ["stateDiagram-v2"];
+  const out = ["stateDiagram-v2", ...directionLines(opts)];
   for (const node of g.nodes.values()) {
     if (node.kind) continue;
     const safe = id(node.id);
@@ -544,9 +606,9 @@ function writeSequence(g) {
   return out.join("\n") + "\n";
 }
 
-function writeClass(g) {
+function writeClass(g, opts = {}) {
   const id = idMapper(["class", "namespace", "note", "direction", "style", "classDef", "cssClass", "click", "link", "callback"]);
-  const out = ["classDiagram"];
+  const out = ["classDiagram", ...directionLines(opts)];
   for (const node of g.nodes.values()) {
     const safe = id(node.id);
     out.push(indent(plain(node.label) === safe ? `class ${safe}` : `class ${safe}[${quoted(node.label)}]`));
@@ -558,12 +620,13 @@ function writeClass(g) {
   return out.join("\n") + "\n";
 }
 
-function writeEr(g) {
+function writeEr(g, opts = {}) {
   const id = idMapper(["direction", "style", "classDef", "class", "erDiagram"]);
-  const out = ["erDiagram"];
+  const out = ["erDiagram", ...directionLines(opts)];
   for (const node of g.nodes.values()) {
     const safe = id(node.id);
-    out.push(indent(plain(node.label) === safe ? safe : `${safe}[${quoted(node.label)}]`));
+    // An ER alias can't hold a bare % (read as a comment) or \ (escapes the quote), so they become entity codes.
+    out.push(indent(plain(node.label) === safe ? safe : `${safe}[${quoted(node.label).replace(/%/g, "#37;").replace(/\\/g, "#92;")}]`));
   }
   for (const e of g.edges) out.push(indent(`${id(e.from)} ||--o{ ${id(e.to)} : ${quoted(plain(e.label) || "relates to")}`));
   return out.join("\n") + "\n";

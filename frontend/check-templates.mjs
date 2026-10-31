@@ -46,6 +46,29 @@ async function collectCases() {
       cases.push({ name: `cheatsheet ${file} #${++n}`, type: file.replace(/\.md$/, ""), source: m[1] });
     }
   }
+  // Labels the converter leaves unquoted (or has to quote) in a flowchart.
+  cases.push({
+    name: "label edge cases",
+    type: "state",
+    source: `stateDiagram-v2
+    direction LR
+    state "Set servo ID's" as a
+    state "Enjoy! 100% + more?" as b
+    state "end of line: done = yes" as c
+    state "Pick (fast) [now] {x}" as d
+    state "a|b; c & d <e>" as e
+    state "/slash\\" as f
+    state "x --> y == z -. w" as g
+    state "#hash @at *star" as h
+    a --> b : it's fine!
+    b --> c : 50% / ok
+    c --> d : go (now)
+    d --> e : a|b
+    e --> f
+    f --> g
+    g --> h
+`,
+  });
   // The type switcher's conversions of all of the above must render too.
   const types = index.map((t) => t.slug);
   for (const from of cases.slice()) {
