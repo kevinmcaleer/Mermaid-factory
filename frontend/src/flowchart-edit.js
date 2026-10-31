@@ -867,3 +867,14 @@ export function reverseEdge(source, edgeId) {
   const line = `${dropRight ? b.raw : b.id} ${chain.links[k]} ${dropLeft ? a.raw : a.id}`;
   return splitChainAt(source, edge, [line], { dropLeft, dropRight });
 }
+
+/** Sets the flowchart's direction ("TD", "LR", "BT" or "RL") on its header line. */
+export function setDirection(source, dir) {
+  for (const line of bodyLines(source)) {
+    if (!HEADER_RE.test(line.text)) continue;
+    const m = /^(\s*(?:flowchart|graph)(?:-elk)?)(?:[ \t]+(?:TB|TD|BT|RL|LR))?(.*)$/.exec(line.text);
+    if (!m) return source;
+    return source.slice(0, line.from) + `${m[1]} ${dir}${m[2]}` + source.slice(line.from + line.text.length);
+  }
+  return source;
+}

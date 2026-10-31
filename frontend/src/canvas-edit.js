@@ -26,6 +26,7 @@ import {
   isFlowchart,
   nodeIdFromElement,
   setNodeShape,
+  setDirection,
   setNodeText,
 } from "./flowchart-edit.js";
 
@@ -125,8 +126,16 @@ const CSS = `
 .mf-canvas-edit g.node.mf-drop-target > g > :is(rect, polygon, circle, path, ellipse) {
   stroke: var(--mf-select, #2563eb) !important; stroke-width: 3px !important; stroke-dasharray: 5 3;
 }
+.mf-canvas-bar { position: absolute; left: 10px; top: 10px; z-index: 15; display: flex; gap: 6px; }
+.mf-canvas-bar[hidden] { display: none; }
+.mf-dir { display: flex; padding: 2px; gap: 1px; border: 1px solid var(--mf-pop-border, var(--border, #d9dde4)); border-radius: 9px;
+  background: var(--mf-pop-bg, var(--surface, #fff)); color: var(--mf-pop-text, var(--text, #1d2330)); box-shadow: 0 2px 10px rgb(0 0 0 / 12%); }
+.mf-dir button { display: grid; place-items: center; width: 24px; height: 22px; padding: 0; border: 0; border-radius: 6px; background: none; color: inherit; cursor: pointer; }
+.mf-dir button:hover { background: color-mix(in srgb, currentColor 10%, transparent); }
+.mf-dir button[aria-pressed="true"] { background: color-mix(in srgb, var(--mf-select, #2563eb) 16%, transparent); color: var(--mf-select, #2563eb); }
+.mf-dir svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 .mf-add-shape {
-  position: absolute; left: 10px; top: 10px; z-index: 15; display: flex; align-items: center; gap: 5px;
+  display: flex; align-items: center; gap: 5px;
   padding: 5px 10px 5px 8px; border: 1px solid var(--mf-pop-border, var(--border, #d9dde4)); border-radius: 9px;
   background: var(--mf-pop-bg, var(--surface, #fff)); color: var(--mf-pop-text, var(--text, #1d2330));
   box-shadow: 0 2px 10px rgb(0 0 0 / 12%); font: 12px/1 var(--mf-pop-font, system-ui, sans-serif); cursor: pointer;
@@ -471,12 +480,31 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
   const addButton = doc.createElement("button");
   addButton.type = "button";
   addButton.className = "mf-add-shape";
-  addButton.dataset.mfUi = "";
   addButton.title = "Add a shape that isn't joined to anything yet";
   addButton.innerHTML = `${PLUS}<span>Shape</span>`;
-  viewport.append(addButton);
+  // Which way the flowchart flows, beside it.
+  const dirGroup = doc.createElement("div");
+  dirGroup.className = "mf-dir";
+  dirGroup.setAttribute("role", "group");
+  dirGroup.setAttribute("aria-label", "Direction");
+  const DIRS = [
+    ["TD", "Top to bottom", "M8 2.5v11M4 9.5l4 4 4-4"],
+    ["LR", "Left to right", "M2.5 8h11M9.5 4l4 4-4 4"],
+    ["BT", "Bottom to top", "M8 13.5v-11M4 6.5l4-4 4 4"],
+    ["RL", "Right to left", "M13.5 8h-11M6.5 4l-4 4 4 4"],
+  ];
+  dirGroup.innerHTML = DIRS.map(([d, label, path]) => `<button type="button" data-dir="${d}" title="${label}" aria-label="${label}"><svg viewBox="0 0 16 16" aria-hidden="true"><path d="${path}"/></svg></button>`).join("");
+  dirGroup.addEventListener("click", (e) => {
+    const b = e.target.closest("button[data-dir]");
+    if (b) change(setDirection(getSource(), b.dataset.dir));
+  });
+  const bar = doc.createElement("div");
+  bar.className = "mf-canvas-bar";
+  bar.dataset.mfUi = "";
+  bar.append(addButton, dirGroup);
+  viewport.append(bar);
   for (const type of ["pointerdown", "mousedown", "click", "dblclick"]) {
-    addButton.addEventListener(type, (e) => e.stopPropagation());
+    bar.addEventListener(type, (e) => e.stopPropagation());
   }
   addButton.addEventListener("click", () => {
     const { source, id } = addNode(getSource());
@@ -484,7 +512,14 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     open(id, { focusText: true });
   });
   const editable = () => isFlowchart(getSource()) || !getSource().trim();
-  const syncAddButton = () => (addButton.hidden = !editable());
+  const syncAddButton = () => {
+    bar.hidden = !editable();
+    const flow = isFlowchart(getSource());
+    dirGroup.hidden = !flow;
+    dirGroup.style.display = flow ? "" : "none";
+    const dir = flow ? flowDirection(getSource()) : "";
+    dirGroup.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String((b.dataset.dir === "TD" ? "TB" : b.dataset.dir) === dir)));
+  };
   syncAddButton();
 
   // Opening "Colours and border" makes the popover taller: keep it on screen.
@@ -842,7 +877,7 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
       viewport.classList.remove("mf-canvas-edit");
       pop.remove();
       epop.remove();
-      addButton.remove();
+      bar.remove();
       dragLine.remove();
       for (const h of Object.values(handles)) h.remove();
     },

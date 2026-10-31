@@ -7,6 +7,7 @@ import {
   listEdges,
   readLink,
   reverseEdge,
+  setDirection,
   setEdge,
   writeLink,
   classDefNames,
@@ -232,4 +233,9 @@ test("changes, reverses and deletes arrows", () => {
   assert.equal(reverseEdge("flowchart TD\n  a[A] --> b\n", "L_a_b_0"), "flowchart TD\n  b --> a[A]\n");
   assert.equal(deleteEdge(src, "L_a_b_0"), "flowchart LR\n    a[A]\n    b[B] --> c[C]\n");
   assert.equal(deleteEdge("flowchart TD\n  a & b --> c\n", "L_a_c_0"), null);
+});
+
+test("sets the direction on the header", () => {
+  assert.equal(setDirection("flowchart LR\n  a --> b", "TD"), "flowchart TD\n  a --> b");
+  assert.equal(setDirection("---\ntitle: x\n---\ngraph\n  a --> b", "RL"), "---\ntitle: x\n---\ngraph RL\n  a --> b");
 });
