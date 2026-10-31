@@ -36,6 +36,7 @@ import { canConvert, convertDiagram, diagramDirection, flowchartKeyword } from "
 import { attachCanvasEditor } from "./canvas-edit.js";
 import { minimalChange } from "./flowchart-edit.js";
 import { SAVE, SAVED, readHandoff } from "./handoff.js";
+import { liftStyle, withStyle } from "./style-config.js";
 
 const $ = (sel) => document.querySelector(sel);
 const RENDER_DEBOUNCE_MS = 300;
@@ -58,7 +59,12 @@ const state = {
 // Code handed over by another page ("Open in Mermaid Factory").
 const handoff = state.id === null ? readHandoff(location.hash) : null;
 if (handoff) {
-  state.source = handoff.source;
+  // Its theme and style come in its front matter; here they go in the toolbar
+  // and Style panel (and back into the code on "Save to …").
+  const lifted = liftStyle(handoff.source);
+  state.source = lifted.source;
+  if (lifted.theme) state.theme = lifted.theme;
+  Object.assign(state.config, lifted.config);
   if (handoff.title) state.title = handoff.title;
   history.replaceState(null, "", location.pathname + location.search);
 }
@@ -103,7 +109,7 @@ function changed() {
 
 window.addEventListener("beforeunload", (e) => {
   // Opened from another page, what matters is whether it went back there.
-  const unsaved = handoff?.back ? state.source !== sentBack : isDirty();
+  const unsaved = handoff?.back ? backCode() !== sentBack : isDirty();
   if (unsaved) {
     e.preventDefault();
     e.returnValue = "";
@@ -682,7 +688,10 @@ function applyServer(d) {
 // A diagram opened from another page ("Open in Mermaid Factory" with a way
 // back) saves there: the page that opened this tab (window.opener) gets the
 // code and answers whether it kept it. See handoff.js.
-let sentBack = handoff?.source ?? null;
+// The code that goes back: the Style panel and theme ride in its front matter,
+// since the page only keeps the code.
+const backCode = () => withStyle(state.source, state.theme, state.config);
+let sentBack = handoff ? backCode() : null;
 let pendingBack = null;
 let backTimer = 0;
 const backButton = $("#save-back-btn");
@@ -719,7 +728,7 @@ function saveBack() {
     toast(`${label} is no longer open, so the diagram can't go back there. Save it here instead.`, "error", 8000);
     return;
   }
-  const source = state.source;
+  const source = backCode();
   target.postMessage({ type: SAVE, ref, source, title: state.title }, origin);
   clearTimeout(backTimer);
   backTimer = setTimeout(() => toast(`No answer from ${label}. Is it still open?`, "error", 8000), 4000);

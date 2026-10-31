@@ -1,6 +1,7 @@
 // Wraps mermaid.js: builds the config for a diagram and serialises renders.
 
 import mermaid from "mermaid";
+import { setsOwnTheme } from "./style-config.js";
 
 let renderCounter = 0;
 let queue = Promise.resolve();
@@ -41,6 +42,12 @@ function cleanupOrphans(id) {
  *  with an Error whose message is mermaid's parse error. Renders run one at a
  *  time because mermaid keeps global state. */
 export function renderMermaid(source, { theme, config, forExport = false } = {}) {
+  // A host's palette (themeVariables) is for its own theme. Code that picks a
+  // theme of its own (saved from the Style panel, say) is drawn in that one.
+  if (config?.themeVariables && setsOwnTheme(source)) {
+    const { themeVariables, ...rest } = config;
+    config = rest;
+  }
   const job = queue.then(async () => {
     const id = `mf-render-${++renderCounter}`;
     mermaid.initialize(buildConfig(theme, config, { forExport }));

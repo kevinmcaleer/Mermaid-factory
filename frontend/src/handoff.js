@@ -7,6 +7,8 @@
 // "Save to <label>", which posts { type: SAVE, ref, source, title } to the
 // window that opened it (window.opener, at `origin`). That page answers with
 // { type: SAVED, ref, ok, message }. openInFactory() is the opening page's side.
+// The code sent back carries the toolbar theme and Style panel settings as
+// front-matter config (style-config.js), so the page keeps the diagram's look.
 
 export const SAVE = "mermaid-factory:save";
 export const SAVED = "mermaid-factory:saved";
