@@ -32,7 +32,7 @@ import { PanZoom } from "./panzoom.js";
 import { attachZoomToolbar } from "./zoom-toolbar.js";
 import { setupExportDialog } from "./exporter.js";
 import { lazyThumb, thumbObserver } from "./thumbs.js";
-import { canConvert, convertDiagram } from "./convert.js";
+import { canConvert, convertDiagram, diagramDirection, flowchartKeyword } from "./convert.js";
 import { attachCanvasEditor } from "./canvas-edit.js";
 import { minimalChange } from "./flowchart-edit.js";
 import { SAVE, SAVED, readHandoff } from "./handoff.js";
@@ -364,20 +364,54 @@ typeSearch.addEventListener("keydown", (e) => {
   typeGrid.querySelector(".tcard:not([hidden])")?.click();
 });
 
+// Each switch is remembered as { from: code before, to: code after }. Going
+// back to an earlier type without editing in between gives the earlier code
+// back exactly as it was, rather than a rewritten copy of it.
+const typeSwitches = [];
+// What the code had that some types can't hold (a flowchart's LR direction
+// while it's a mindmap), kept across switches and edits so it comes back.
+let typeHints = {};
+
+/** The unbroken run of switches that led to the current code, newest first. */
+function switchChain(source) {
+  const chain = [];
+  for (let i = typeSwitches.length - 1; i >= 0 && typeSwitches[i].to === source; i--) {
+    chain.push(typeSwitches[i]);
+    source = typeSwitches[i].from;
+  }
+  return chain;
+}
+
 async function switchType(t) {
   typeDialog.close();
   const before = state.source;
   const from = detectType(before);
   if (from === t.slug) return;
+  const chain = switchChain(before);
+  if (chain.length < typeSwitches.length) typeSwitches.splice(0, typeSwitches.length - chain.length);
+  const earlier = chain.find((s) => detectType(s.from) === t.slug);
+  if (earlier) {
+    typeSwitches.splice(typeSwitches.indexOf(earlier));
+    setSource(earlier.from);
+    view.focus();
+    toast(`Back to ${t.name}, as it was`, "info", 8000, { label: "Undo", run: () => (setSource(before), view.focus()) });
+    return;
+  }
   const frontMatter = FRONT_MATTER_RE.exec(before)?.[0];
+  const hints = {
+    direction: diagramDirection(before) || typeHints.direction,
+    keyword: from === "flowchart" ? flowchartKeyword(before) : typeHints.keyword,
+  };
   // Carry the content over where the types are compatible, but only if the
   // result actually parses; otherwise start from the type's template.
-  let code = convertDiagram(frontMatter ? before.slice(frontMatter.length) : before, from, t.slug);
+  let code = convertDiagram(frontMatter ? before.slice(frontMatter.length) : before, from, t.slug, hints);
   if (code !== null && !(await parses(code))) code = null;
   if (state.source !== before) return; // edited while we were checking
   const converted = code !== null;
   code = converted ? code : t.source;
   const next = frontMatter && !FRONT_MATTER_RE.test(code) ? frontMatter.trimStart() + code : code;
+  typeSwitches.push({ from: before, to: next });
+  typeHints = hints;
   setSource(next);
   view.focus();
   if (!before.trim()) return;
