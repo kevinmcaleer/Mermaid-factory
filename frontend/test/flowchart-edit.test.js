@@ -2,6 +2,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   addConnectedNode,
+  addNode,
+  connectNodes,
+  deleteNode,
+  flowDirection,
   findNode,
   formatText,
   isFlowchart,
@@ -89,4 +93,63 @@ test("quotes labels only when needed", () => {
 test("finds the smallest change", () => {
   assert.deepEqual(minimalChange("abcdef", "abXYef"), { from: 2, to: 4, insert: "XY" });
   assert.deepEqual(minimalChange("same", "same"), { from: 4, to: 4, insert: "" });
+});
+
+test("adds a node on the side the flow comes from", () => {
+  const { source, id } = addConnectedNode("flowchart LR\n    a --> b\n", "a", { before: true });
+  assert.equal(id, "n1");
+  assert.equal(source, "flowchart LR\n    a --> b\n    n1[New step] --> a\n");
+});
+
+test("adds a shape on its own, or starts a flowchart", () => {
+  assert.deepEqual(addNode("flowchart LR\n  a --> b"), { source: "flowchart LR\n  a --> b\n  n1[New shape]\n", id: "n1" });
+  assert.equal(addNode("").source, "flowchart TD\n    n1[New shape]\n");
+});
+
+test("reads the flow direction", () => {
+  assert.equal(flowDirection("graph LR\nA-->B"), "LR");
+  assert.equal(flowDirection("flowchart TD\nA-->B"), "TB");
+  assert.equal(flowDirection("flowchart\nA-->B"), "TB");
+});
+
+test("connects nodes: inside a shared subgraph, else at the end", () => {
+  const src = "flowchart TD\n    a --> b\n    subgraph S\n      p\n      q\n    end\n";
+  assert.equal(connectNodes(src, "p", "q"), "flowchart TD\n    a --> b\n    subgraph S\n      p\n      q\n      p --> q\n    end\n");
+  assert.equal(connectNodes(src, "a", "q"), src + "    a --> q\n");
+  assert.equal(connectNodes(src, "a", "a"), src);
+});
+
+test("deletes a node, its arrows and its styling, keeping its neighbours", () => {
+  const src = `flowchart LR
+    a["Buy Parts"] --> b --> c
+    b & d --> e
+    x -.-> b
+    b -- yes --> y
+    b e1@==> z
+    w -->|no| b
+    w --> v
+    style b fill:#f00
+    class a,b hot
+    class b hot
+    click b "https://example.com"
+`;
+  assert.equal(
+    deleteNode(src, "b"),
+    `flowchart LR
+    a["Buy Parts"]
+    c
+    d --> e
+    x
+    y
+    z
+    w --> v
+    class a hot
+`,
+  );
+  // Bare ids that live on elsewhere aren't left behind as their own lines.
+  assert.equal(deleteNode("flowchart TD\n  a[A] --> b\n  b --> c\n  c --> a\n", "b"), "flowchart TD\n  a[A]\n  c --> a\n");
+});
+
+test("won't guess at lines it can't read", () => {
+  assert.equal(deleteNode("flowchart TD\n  a --> b ??? c\n", "b"), null);
 });

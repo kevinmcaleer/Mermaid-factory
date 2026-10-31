@@ -2,7 +2,19 @@
 // shape, or to add a node joined to it. Every change is made to the source
 // (see flowchart-edit.js) and the host re-renders as it would for typing.
 
-import { SHAPES, addConnectedNode, findNode, isFlowchart, nodeIdFromElement, setNodeShape, setNodeText } from "./flowchart-edit.js";
+import {
+  SHAPES,
+  addConnectedNode,
+  addNode,
+  connectNodes,
+  deleteNode,
+  findNode,
+  flowDirection,
+  isFlowchart,
+  nodeIdFromElement,
+  setNodeShape,
+  setNodeText,
+} from "./flowchart-edit.js";
 
 // Little outlines of each shape for the picker (viewBox 0 0 28 18).
 const ICONS = {
@@ -54,6 +66,37 @@ const CSS = `
 .mf-node-pop-add { display: flex; gap: 6px; margin-top: 10px; }
 .mf-node-pop-add button { flex: 1; padding: 6px 8px; border: 1px solid var(--mf-pop-border, var(--border, #d9dde4)); border-radius: 6px; background: var(--mf-pop-button, transparent); }
 .mf-node-pop-add button:hover { border-color: var(--mf-select, #2563eb); }
+.mf-node-pop-add button.mf-node-pop-delete { flex: none; color: var(--mf-danger, #c62828); }
+.mf-node-pop-add button.mf-node-pop-delete:hover { border-color: currentColor; }
+.mf-node-pop-note { margin-top: 6px; font-size: 12px; color: var(--mf-danger, #c62828); }
+.mf-node-pop-note:empty { display: none; }
+/* The "+" handles on each side of a shape: click to add, drag to connect. */
+.mf-handle {
+  position: absolute; z-index: 16; width: 20px; height: 20px; margin: -10px 0 0 -10px; padding: 0;
+  display: grid; place-items: center; border: 0; border-radius: 50%;
+  background: var(--mf-select, #2563eb); color: #fff; box-shadow: 0 1px 4px rgb(0 0 0 / 25%);
+  cursor: crosshair; touch-action: none; opacity: 0.9; transition: transform 0.1s;
+}
+.mf-handle:hover { transform: scale(1.2); opacity: 1; }
+.mf-handle[hidden] { display: none; }
+.mf-handle svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; }
+.mf-drag-line { position: absolute; inset: 0; z-index: 17; width: 100%; height: 100%; pointer-events: none; overflow: visible; }
+.mf-drag-line[hidden] { display: none; }
+.mf-drag-line line { stroke: var(--mf-select, #2563eb); stroke-width: 2; stroke-dasharray: 5 4; }
+.mf-drag-line circle { fill: var(--mf-select, #2563eb); }
+.mf-canvas-edit g.node.mf-drop-target > :is(rect, polygon, circle, path, ellipse),
+.mf-canvas-edit g.node.mf-drop-target > g > :is(rect, polygon, circle, path, ellipse) {
+  stroke: var(--mf-select, #2563eb) !important; stroke-width: 3px !important; stroke-dasharray: 5 3;
+}
+.mf-add-shape {
+  position: absolute; left: 10px; top: 10px; z-index: 15; display: flex; align-items: center; gap: 5px;
+  padding: 5px 10px 5px 8px; border: 1px solid var(--mf-pop-border, var(--border, #d9dde4)); border-radius: 9px;
+  background: var(--mf-pop-bg, var(--surface, #fff)); color: var(--mf-pop-text, var(--text, #1d2330));
+  box-shadow: 0 2px 10px rgb(0 0 0 / 12%); font: 12px/1 var(--mf-pop-font, system-ui, sans-serif); cursor: pointer;
+}
+.mf-add-shape:hover { border-color: var(--mf-select, #2563eb); }
+.mf-add-shape[hidden] { display: none; }
+.mf-add-shape svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
 `;
 
 function injectStyle(doc) {
@@ -63,6 +106,11 @@ function injectStyle(doc) {
   style.textContent = CSS;
   doc.head.append(style);
 }
+
+const PLUS = '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 8h9M8 3.5v9"/></svg>';
+// Which side of a shape the flow comes from, by direction.
+const UPSTREAM = { TB: "top", BT: "bottom", LR: "left", RL: "right" };
+const SIDES = ["top", "right", "bottom", "left"];
 
 const icon = (shape) => `<svg viewBox="0 0 28 18" aria-hidden="true">${ICONS[shape] || ICONS.rect}</svg>`;
 
@@ -92,7 +140,9 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     <div class="mf-node-pop-shapes" role="group" aria-label="Shape"></div>
     <div class="mf-node-pop-add">
       <button type="button" data-add title="Add a shape joined to this one with an arrow">+ Add connected shape</button>
-    </div>`;
+      <button type="button" class="mf-node-pop-delete" data-delete title="Delete this shape and its arrows (Delete)">Delete</button>
+    </div>
+    <div class="mf-node-pop-note" role="status"></div>`;
   const head = pop.querySelector(".mf-node-pop-head span");
   const input = pop.querySelector(".mf-node-pop-text");
   const shapes = pop.querySelector(".mf-node-pop-shapes");
@@ -105,7 +155,49 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     b.innerHTML = icon(s.id);
     shapes.append(b);
   }
+  const note = pop.querySelector(".mf-node-pop-note");
   viewport.append(pop);
+
+  // "+" handles on the four sides of the shape under the pointer (or the selected one).
+  const handles = {};
+  for (const side of SIDES) {
+    const h = doc.createElement("button");
+    h.type = "button";
+    h.className = "mf-handle";
+    h.dataset.mfUi = "";
+    h.dataset.side = side;
+    h.hidden = true;
+    h.title = "Click to add a shape, or drag to another shape to connect";
+    h.setAttribute("aria-label", `Add a shape (${side})`);
+    h.innerHTML = PLUS;
+    viewport.append(h);
+    handles[side] = h;
+  }
+  const dragLine = doc.createElementNS("http://www.w3.org/2000/svg", "svg");
+  dragLine.classList.add("mf-drag-line");
+  dragLine.setAttribute("hidden", "");
+  dragLine.innerHTML = '<line/><circle r="4"/>';
+  viewport.append(dragLine);
+
+  // "+ Shape": a new shape on its own (or a new flowchart when the code is empty).
+  const addButton = doc.createElement("button");
+  addButton.type = "button";
+  addButton.className = "mf-add-shape";
+  addButton.dataset.mfUi = "";
+  addButton.title = "Add a shape that isn't joined to anything yet";
+  addButton.innerHTML = `${PLUS}<span>Shape</span>`;
+  viewport.append(addButton);
+  for (const type of ["pointerdown", "mousedown", "click", "dblclick"]) {
+    addButton.addEventListener(type, (e) => e.stopPropagation());
+  }
+  addButton.addEventListener("click", () => {
+    const { source, id } = addNode(getSource());
+    change(source);
+    open(id, { focusText: true });
+  });
+  const editable = () => isFlowchart(getSource()) || !getSource().trim();
+  const syncAddButton = () => (addButton.hidden = !editable());
+  syncAddButton();
 
   // Keep clicks, drags and wheel in the popover away from pan/zoom and hosts.
   for (const type of ["pointerdown", "mousedown", "click", "dblclick", "wheel", "keydown"]) {
@@ -138,6 +230,7 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     change(setNodeShape(getSource(), selected, b.dataset.shape));
     markShape(b.dataset.shape);
   });
+  pop.querySelector("[data-delete]").addEventListener("click", () => removeSelected());
   pop.querySelector("[data-add]").addEventListener("click", () => {
     if (!selected) return;
     const { source, id } = addConnectedNode(getSource(), selected, { text: "New step", shape: "rect" });
@@ -145,6 +238,158 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     // Select the new node (highlighted once it's drawn), ready to type its text.
     open(id, { focusText: true });
   });
+
+  function removeSelected() {
+    if (!selected) return;
+    const next = deleteNode(getSource(), selected);
+    if (next === null) {
+      note.textContent = "This line is too unusual to change here. Please delete it in the code.";
+      return;
+    }
+    close();
+    hover = null;
+    change(next);
+    showHandles();
+  }
+
+  // ---------------------------------------------------------------- handles
+
+  let hover = null; // node id under the pointer
+  let hideTimer = 0;
+  let drag = null; // a handle being dragged
+
+  function handleNode() {
+    return drag?.from || hover || selected;
+  }
+
+  function showHandles() {
+    const id = handleNode();
+    const el = id && isFlowchart(getSource()) ? nodeElement(id) : null;
+    if (!el) {
+      for (const h of Object.values(handles)) h.hidden = true;
+      return;
+    }
+    const vr = viewport.getBoundingClientRect();
+    const r = el.getBoundingClientRect();
+    const gap = 14;
+    const cx = r.left + r.width / 2 - vr.left + viewport.scrollLeft;
+    const cy = r.top + r.height / 2 - vr.top + viewport.scrollTop;
+    const at = {
+      top: [cx, r.top - vr.top + viewport.scrollTop - gap],
+      bottom: [cx, r.bottom - vr.top + viewport.scrollTop + gap],
+      left: [r.left - vr.left + viewport.scrollLeft - gap, cy],
+      right: [r.right - vr.left + viewport.scrollLeft + gap, cy],
+    };
+    for (const side of SIDES) {
+      const h = handles[side];
+      h.hidden = !!drag && drag.side !== side;
+      h.style.left = `${at[side][0]}px`;
+      h.style.top = `${at[side][1]}px`;
+    }
+  }
+
+  const onOver = (e) => {
+    if (drag) return;
+    if (e.target.closest?.(".mf-handle")) {
+      clearTimeout(hideTimer);
+      return;
+    }
+    const g = e.target.closest?.("g.node");
+    const id = g && canvas.contains(g) ? nodeIdFromElement(g) : null;
+    if (id) {
+      clearTimeout(hideTimer);
+      if (id !== hover) {
+        hover = id;
+        showHandles();
+      }
+    } else if (hover) {
+      clearTimeout(hideTimer);
+      hideTimer = setTimeout(() => {
+        hover = null;
+        showHandles();
+      }, 350);
+    }
+  };
+  viewport.addEventListener("pointerover", onOver);
+
+  function nodeAt(x, y) {
+    const g = doc.elementFromPoint(x, y)?.closest?.("g.node");
+    return g && canvas.contains(g) ? nodeIdFromElement(g) : null;
+  }
+
+  function markDropTarget(id) {
+    canvas.querySelectorAll("g.node.mf-drop-target").forEach((g) => g.classList.remove("mf-drop-target"));
+    if (id) nodeElement(id)?.classList.add("mf-drop-target");
+  }
+
+  for (const side of SIDES) {
+    const h = handles[side];
+    h.addEventListener("click", (e) => e.stopPropagation());
+    h.addEventListener("pointerdown", (e) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      e.preventDefault();
+      const from = handleNode();
+      if (!from) return;
+      h.setPointerCapture(e.pointerId);
+      const vr = viewport.getBoundingClientRect();
+      drag = { from, side, x: e.clientX, y: e.clientY, moved: false, target: null, vr };
+    });
+    h.addEventListener("pointermove", (e) => {
+      if (!drag) return;
+      if (!drag.moved && Math.hypot(e.clientX - drag.x, e.clientY - drag.y) > 4) {
+        drag.moved = true;
+        dragLine.removeAttribute("hidden");
+        showHandles();
+      }
+      if (!drag.moved) return;
+      const { vr } = drag;
+      const hr = h.getBoundingClientRect();
+      const line = dragLine.querySelector("line");
+      const dot = dragLine.querySelector("circle");
+      const sx = hr.left + hr.width / 2 - vr.left;
+      const sy = hr.top + hr.height / 2 - vr.top;
+      const ex = e.clientX - vr.left;
+      const ey = e.clientY - vr.top;
+      line.setAttribute("x1", sx);
+      line.setAttribute("y1", sy);
+      line.setAttribute("x2", ex);
+      line.setAttribute("y2", ey);
+      dot.setAttribute("cx", ex);
+      dot.setAttribute("cy", ey);
+      dragLine.style.left = `${viewport.scrollLeft}px`;
+      dragLine.style.top = `${viewport.scrollTop}px`;
+      const target = nodeAt(e.clientX, e.clientY);
+      drag.target = target && target !== drag.from ? target : null;
+      markDropTarget(drag.target);
+    });
+    const finish = (e, cancelled) => {
+      if (!drag) return;
+      const { from, moved, target } = drag;
+      drag = null;
+      dragLine.setAttribute("hidden", "");
+      markDropTarget(null);
+      if (h.hasPointerCapture?.(e.pointerId)) h.releasePointerCapture(e.pointerId);
+      if (cancelled) return showHandles();
+      if (moved && target) {
+        // Dropped on another shape: join them.
+        change(connectNodes(getSource(), from, target));
+        open(from);
+      } else if (moved && nodeAt(e.clientX, e.clientY) === from) {
+        showHandles(); // dropped back where it started
+      } else {
+        // A click, or a drop on empty space: a new shape on that side.
+        const before = side === UPSTREAM[flowDirection(getSource())];
+        const { source, id } = addConnectedNode(getSource(), from, { text: "New step", shape: "rect", before });
+        change(source);
+        hover = null;
+        open(id, { focusText: true });
+      }
+      showHandles();
+    };
+    h.addEventListener("pointerup", (e) => finish(e, false));
+    h.addEventListener("pointercancel", (e) => finish(e, true));
+  }
 
   function markShape(shape) {
     shapes.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.shape === shape)));
@@ -186,11 +431,13 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     const node = findNode(getSource(), id);
     if (!node) return close();
     selected = id;
+    note.textContent = "";
     head.textContent = `Shape ${id}`;
     if (doc.activeElement !== input || focusText) input.value = node.text;
     markShape(node.shape);
     pop.hidden = false;
     place(highlight());
+    showHandles();
     if (focusText) {
       input.focus();
       input.select();
@@ -201,6 +448,7 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     selected = null;
     pop.hidden = true;
     highlight();
+    showHandles();
   }
 
   // A click (not a drag) on a node opens it; on empty space closes.
@@ -228,10 +476,31 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
     if (e.target.closest?.("g.node") && isFlowchart(getSource())) e.stopPropagation();
   };
   viewport.addEventListener("click", onClick, true);
+  // Double-click a shape to type its text straight away.
+  const onDblClick = (e) => {
+    const g = e.target.closest?.("g.node");
+    if (!g || !canvas.contains(g) || !isFlowchart(getSource())) return;
+    e.preventDefault();
+    e.stopPropagation();
+    open(nodeIdFromElement(g), { focusText: true });
+  };
+  viewport.addEventListener("dblclick", onDblClick, true);
+  // Delete or Backspace removes the selected shape, unless the writer is typing.
+  const onKey = (e) => {
+    if (!selected || pop.hidden || !["Delete", "Backspace", "Escape"].includes(e.key)) return;
+    const t = doc.activeElement;
+    if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+    e.preventDefault();
+    if (e.key === "Escape") close();
+    else removeSelected();
+  };
+  doc.addEventListener("keydown", onKey);
 
   return {
     /** Call after the drawing is replaced. */
     refresh() {
+      syncAddButton();
+      showHandles();
       if (!selected) return;
       if (!isFlowchart(getSource())) return close();
       const node = findNode(getSource(), selected);
@@ -254,8 +523,14 @@ export function attachCanvasEditor({ viewport, canvas, getSource, setSource }) {
       viewport.removeEventListener("pointerdown", onDown, true);
       viewport.removeEventListener("pointerup", onUp, true);
       viewport.removeEventListener("click", onClick, true);
+      viewport.removeEventListener("dblclick", onDblClick, true);
+      viewport.removeEventListener("pointerover", onOver);
+      doc.removeEventListener("keydown", onKey);
       viewport.classList.remove("mf-canvas-edit");
       pop.remove();
+      addButton.remove();
+      dragLine.remove();
+      for (const h of Object.values(handles)) h.remove();
     },
   };
 }
