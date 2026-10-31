@@ -1,7 +1,8 @@
 // Wraps mermaid.js: builds the config for a diagram and serialises renders.
 
 import mermaid from "mermaid";
-import { setsOwnTheme } from "./style-config.js";
+import { liftStyle, setsOwnTheme } from "./style-config.js";
+import { paperFor, withBackdrop } from "./backdrop.js";
 
 let renderCounter = 0;
 let queue = Promise.resolve();
@@ -38,10 +39,24 @@ function cleanupOrphans(id) {
   document.getElementById("d" + id)?.remove();
 }
 
+/** The diagram's background ("", "blueprint" or "blueprint-dark"): its
+ *  config's, or else the one in the code's front matter. */
+export function backgroundOf(source, config) {
+  if (config && "background" in config) return paperFor(config.background) ? config.background : "";
+  const fromCode = liftStyle(source || "").config.background;
+  return paperFor(fromCode) ? fromCode : "";
+}
+
 /** Parse and render. Resolves to {svg, bindFunctions, diagramType}; rejects
  *  with an Error whose message is mermaid's parse error. Renders run one at a
- *  time because mermaid keeps global state. */
-export function renderMermaid(source, { theme, config, forExport = false } = {}) {
+ *  time because mermaid keeps global state.
+ *
+ *  A blueprint background (config.background, or `background:` in the code's
+ *  front matter) is drawn into the SVG: the pale ink always, and the grid
+ *  paper unless `paper: false` (the editor shows the paper behind its whole
+ *  view instead). */
+export function renderMermaid(source, { theme, config, forExport = false, paper = true } = {}) {
+  const background = backgroundOf(source, config);
   // A host's palette (themeVariables) is for its own theme. Code that picks a
   // theme of its own (saved from the Style panel, say) is drawn in that one.
   if (config?.themeVariables && setsOwnTheme(source)) {
@@ -53,7 +68,9 @@ export function renderMermaid(source, { theme, config, forExport = false } = {})
     mermaid.initialize(buildConfig(theme, config, { forExport }));
     try {
       await mermaid.parse(source);
-      return await mermaid.render(id, source);
+      const result = await mermaid.render(id, source);
+      if (background) result.svg = withBackdrop(result.svg, background, { paper });
+      return result;
     } finally {
       cleanupOrphans(id);
     }

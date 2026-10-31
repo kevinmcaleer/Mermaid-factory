@@ -19,6 +19,7 @@ import {
 } from "./common.js";
 import { mermaid as mermaidLang } from "./mermaid-lang.js";
 import {
+  backgroundOf,
   detectType,
   errorLine,
   errorMessage,
@@ -29,6 +30,7 @@ import {
   themeBackground,
 } from "./render.js";
 import { PanZoom } from "./panzoom.js";
+import { applyPaper } from "./backdrop.js";
 import { attachZoomToolbar } from "./zoom-toolbar.js";
 import { setupExportDialog } from "./exporter.js";
 import { lazyThumb, thumbObserver } from "./thumbs.js";
@@ -208,11 +210,38 @@ const canvas = $("#preview-canvas");
 const panzoom = new PanZoom(viewport, canvas, {
   onChange: (scale) => {
     zoomBar.update(scale);
+    paintBackground(); // the blueprint grid moves with the drawing
     canvasEditor.refresh(); // keep the shape editor beside its node
   },
 });
-// Floating over the drawing: fit, −, the zoom level (100% ⇄ fit) and +.
-const zoomBar = attachZoomToolbar(viewport, panzoom);
+// Floating over the drawing: fit, −, the zoom level (100% ⇄ fit) and +, and
+// the background (none, blue or black blueprint), saved in the diagram's config.
+const zoomBar = attachZoomToolbar(viewport, panzoom, {
+  background: {
+    value: state.config.background || "",
+    onChange: (value) => {
+      if (value) state.config.background = value;
+      else delete state.config.background;
+      changed();
+      paintBackground();
+      doRender();
+    },
+  },
+});
+
+/** The blueprint paper behind the whole view (or the theme's background). */
+function paintBackground() {
+  const background = backgroundOf(state.source, state.config);
+  const transform = { scale: panzoom.scale, x: panzoom.x, y: panzoom.y };
+  if (!applyPaper(viewport, background, transform)) viewport.style.background = themeBackground(state.theme);
+  viewport.classList.toggle("has-paper", !!background);
+}
+
+/** Shows state.config's background in the toolbar (after a load or restore). */
+function syncBackground() {
+  zoomBar.setBackground(state.config.background || "");
+  paintBackground();
+}
 
 // Clicking a flowchart node edits its text and shape, or adds a node joined to it.
 const canvasEditor = attachCanvasEditor({
@@ -245,10 +274,10 @@ async function doRender() {
       showError(null);
       return;
     }
-    const { svg, bindFunctions } = await renderMermaid(source, { theme: state.theme, config: state.config });
+    const { svg, bindFunctions } = await renderMermaid(source, { theme: state.theme, config: state.config, paper: false });
     if (seq !== renderSeq) return;
     canvas.innerHTML = svg;
-    viewport.style.background = themeBackground(state.theme);
+    paintBackground();
     const svgEl = canvas.querySelector("svg");
     bindFunctions?.(canvas);
     $("#preview-empty").hidden = true;
@@ -675,6 +704,7 @@ function applyServer(d) {
   titleInput.value = d.title;
   themeSelect.value = d.theme;
   for (const key of ["look", "layout", "curve", "fontFamily"]) styleForm.elements[key].value = state.config[key] || "";
+  syncBackground();
   $("#tags-input").value = state.tags.join(", ");
   if (d.source !== state.source) setSource(d.source); // updates state.source via listener
   state.source = d.source;
@@ -878,6 +908,7 @@ function offerDraft() {
         titleInput.value = state.title;
         themeSelect.value = state.theme;
         for (const key of ["look", "layout", "curve", "fontFamily"]) styleForm.elements[key].value = state.config[key] || "";
+        syncBackground();
         $("#tags-input").value = state.tags.join(", ");
         setSource(content.source);
         changed();

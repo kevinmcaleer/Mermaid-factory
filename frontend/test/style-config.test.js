@@ -59,3 +59,9 @@ test("setsOwnTheme", () => {
   assert.equal(setsOwnTheme(withStyle(CODE, "forest", {})), true);
   assert.equal(setsOwnTheme("%%{init: {'theme': 'dark'}}%%\n" + CODE), true);
 });
+
+test("the background rides in front matter and comes back out", () => {
+  const out = withStyle(CODE, "default", { background: "blueprint" });
+  assert.equal(out, "---\nconfig:\n  background: blueprint\n---\n" + CODE);
+  assert.deepEqual(liftStyle(out), { source: CODE, theme: null, config: { background: "blueprint" } });
+});

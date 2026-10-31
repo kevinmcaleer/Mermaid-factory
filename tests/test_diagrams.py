@@ -83,6 +83,13 @@ def test_config_is_whitelisted(alice):
     assert d["config"] == {"look": "handDrawn", "layout": "elk"}
 
 
+def test_background_is_kept_when_known(alice):
+    d = create(alice, config={"background": "blueprint-dark"})
+    assert d["config"] == {"background": "blueprint-dark"}
+    d = create(alice, config={"background": "url(evil)"})
+    assert d["config"] == {}
+
+
 def test_cross_user_access_is_404(alice, bob):
     d = create(alice)
     assert bob.get(f"/api/diagrams/{d['id']}").status_code == 404

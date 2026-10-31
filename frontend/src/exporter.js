@@ -1,6 +1,7 @@
 // SVG / PNG download, done entirely in the browser.
 
-import { errorMessage, fixSvgSize, renderMermaid, themeBackground } from "./render.js";
+import { backgroundOf, errorMessage, fixSvgSize, renderMermaid, themeBackground } from "./render.js";
+import { BACKGROUNDS } from "./backdrop.js";
 import { slugify, toast } from "./common.js";
 
 const SVG_NS = "http://www.w3.org/2000/svg";
@@ -126,11 +127,14 @@ export function setupExportDialog(getDiagram) {
   dialog.addEventListener("close", async () => {
     if (dialog.returnValue !== "download" || !current) return;
     const bgChoice = form.querySelector('input[name="background"]:checked').value;
-    const background = bgChoice === "custom" ? form.elements.background_color.value : bgChoice;
+    const background =
+      bgChoice === "custom" ? form.elements.background_color.value : bgChoice === "paper" ? null : bgChoice;
+    // The diagram's blueprint, or (any other choice) the diagram without it.
+    const config = bgChoice === "paper" ? current.config : { ...current.config, background: "" };
     let name = filenameInput.value.trim() || fileName();
     const ext = formatSel.value === "svg" ? ".svg" : ".png";
     if (!name.toLowerCase().endsWith(ext)) name += ext;
-    const opts = { source: current.source, theme: current.theme, config: current.config, background };
+    const opts = { source: current.source, theme: current.theme, config, background };
     try {
       if (formatSel.value === "svg") await downloadSvg(opts, name);
       else await downloadPng(opts, Number(scaleSel.value), name);
@@ -147,9 +151,19 @@ export function setupExportDialog(getDiagram) {
       return;
     }
     userEditedName = false;
+    // A blueprint diagram offers its blueprint (and picks it).
+    const paper = backgroundOf(current.source, current.config);
+    const paperOption = form.querySelector("[data-paper-only]");
+    paperOption.hidden = !paper;
+    if (paper) {
+      paperOption.querySelector("[data-paper-label]").textContent = BACKGROUNDS.find((b) => b.value === paper).label;
+      paperOption.querySelector("input").checked = true;
+    } else if (paperOption.querySelector("input").checked) {
+      form.querySelector('input[name="background"][value="transparent"]').checked = true;
+    }
     // Dark themes look wrong on transparent/white, so suggest their own background.
     const darkBg = themeBackground(current.theme);
-    if (darkBg) {
+    if (darkBg && !paper) {
       form.elements.background_color.value = darkBg;
       form.querySelector('input[name="background"][value="custom"]').checked = true;
     }
