@@ -34,7 +34,7 @@ import { setupExportDialog } from "./exporter.js";
 import { lazyThumb, thumbObserver } from "./thumbs.js";
 import { canConvert, convertDiagram, diagramDirection, flowchartKeyword } from "./convert.js";
 import { attachCanvasEditor } from "./canvas-edit.js";
-import { minimalChange } from "./flowchart-edit.js";
+import { isFlowchart, minimalChange, tidyFlowchart } from "./flowchart-edit.js";
 import { SAVE, SAVED, readHandoff } from "./handoff.js";
 import { liftStyle, withStyle } from "./style-config.js";
 
@@ -780,8 +780,24 @@ async function requireSaved(what) {
 }
 
 const actions = {
-  copy: () => copyWithToast(state.source, "Code copied"),
-  "copy-md": () => copyWithToast(markdownFence(state.source), "Markdown copied"),
+  // Copied code carries the theme and Style panel settings in its front matter,
+  // so it looks the same wherever it's pasted.
+  copy: () => copyWithToast(withStyle(state.source, state.theme, state.config), "Code copied"),
+  "copy-md": () => copyWithToast(markdownFence(withStyle(state.source, state.theme, state.config)), "Markdown copied"),
+  tidy: () => {
+    if (!isFlowchart(state.source)) {
+      toast("Tidy code works on flowcharts");
+      return;
+    }
+    const next = tidyFlowchart(state.source);
+    if (next === state.source) {
+      toast("Already tidy");
+      return;
+    }
+    view.dispatch({ changes: minimalChange(state.source, next) });
+    view.focus();
+    toast("Code tidied (Ctrl/⌘+Z to undo)");
+  },
   export: () => openExport(),
   share: async () => {
     if (!(await requireSaved("share it"))) return;

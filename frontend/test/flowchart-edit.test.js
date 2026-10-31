@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import {
   addConnectedNode,
   addNode,
+  tidyFlowchart,
   deleteEdge,
   listEdges,
   readLink,
@@ -238,4 +239,31 @@ test("changes, reverses and deletes arrows", () => {
 test("sets the direction on the header", () => {
   assert.equal(setDirection("flowchart LR\n  a --> b", "TD"), "flowchart TD\n  a --> b");
   assert.equal(setDirection("---\ntitle: x\n---\ngraph\n  a --> b", "RL"), "---\ntitle: x\n---\ngraph RL\n  a --> b");
+});
+
+test("tidyFlowchart: unquotes labels and moves lone declarations onto their first arrow", () => {
+  const source = `flowchart LR
+    a["Buy Parts"]
+    b["Print 3D parts"]
+    c["Set servo ID's"]
+    n1["Enjoy!"]
+    a --> b
+    b --> c
+    c --> n1
+`;
+  assert.equal(
+    tidyFlowchart(source),
+    "flowchart LR\n    a[Buy Parts] --> b[Print 3D parts]\n    b --> c[Set servo ID's]\n    c --> n1[Enjoy!]\n",
+  );
+  assert.equal(tidyFlowchart(tidyFlowchart(source)), tidyFlowchart(source));
+});
+
+test("tidyFlowchart: leaves what it can't simplify safely", () => {
+  // Quotes that are needed stay; a declaration doesn't move into another subgraph.
+  const source = 'flowchart TD\n  x["a (b)"]\n  y\n  x --> y\n  subgraph S\n    z["Z"]\n  end\n  y --> z\n';
+  assert.equal(tidyFlowchart(source), 'flowchart TD\n  y\n  x["a (b)"] --> y\n  subgraph S\n    z[Z]\n  end\n  y --> z\n');
+  assert.equal(tidyFlowchart("sequenceDiagram\n  A->>B: hi\n"), "sequenceDiagram\n  A->>B: hi\n");
+  // Shapes other than the bracket kind, and nodes defined twice, stay put.
+  const twice = 'flowchart TD\n  a["A"]\n  a --> b\n  a["A again"]\n';
+  assert.equal(tidyFlowchart(twice), 'flowchart TD\n  a[A]\n  a --> b\n  a[A again]\n');
 });

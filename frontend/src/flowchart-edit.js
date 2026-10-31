@@ -878,3 +878,53 @@ export function setDirection(source, dir) {
   }
   return source;
 }
+
+/**
+ * Tidies a flowchart without changing what it draws: labels lose quotes they
+ * don't need (`a["Buy parts"]` → `a[Buy parts]`), and a shape declared on a
+ * line of its own moves onto the first arrow that uses it, so
+ *
+ *   a["Buy"]            becomes   a[Buy] --> b[Print]
+ *   b["Print"]
+ *   a --> b
+ *
+ * Only plain cases are touched: a declaration moves only within its subgraph
+ * and only onto a bare mention of the same node. Anything else is left as it is.
+ */
+export function tidyFlowchart(source) {
+  if (!isFlowchart(source)) return source;
+  // 1. Quotes.
+  let out = source;
+  for (const t of scan(source).reverse()) {
+    if (t.def?.kind !== "bracket") continue;
+    const raw = source.slice(t.def.textFrom, t.def.textTo);
+    if (!/^"[^"]*"$/.test(raw)) continue;
+    const text = formatText(readText(raw));
+    if (text.startsWith('"')) continue;
+    out = out.slice(0, t.def.textFrom) + text + out.slice(t.def.textTo);
+  }
+  // 2. Lone declarations onto their first arrow.
+  const tokens = scan(out);
+  const byLine = new Map();
+  for (const t of tokens) byLine.set(t.line.from, [...(byLine.get(t.line.from) || []), t]);
+  const edits = [];
+  const taken = new Set();
+  for (const t of tokens) {
+    if (!t.def || t.def.kind !== "bracket") continue;
+    const line = t.line;
+    const own = byLine.get(line.from);
+    const decl = out.slice(t.from, t.def.to);
+    if (own.length !== 1 || line.text.trim().replace(/;$/, "") !== decl) continue;
+    if (tokens.some((o) => o !== t && o.id === t.id && o.def)) continue; // defined twice
+    const target = tokens.find(
+      (o) => o.id === t.id && !o.def && o.from > t.from && o.line.ctx === line.ctx && byLine.get(o.line.from).length > 1 && /--|==|-\.|~~~/.test(o.line.text),
+    );
+    if (!target || taken.has(target.from)) continue;
+    taken.add(target.from);
+    edits.push({ from: target.from, to: target.to, insert: decl });
+    edits.push({ from: line.from, to: Math.min(line.from + line.text.length + 1, out.length), insert: "" });
+  }
+  edits.sort((a, b) => b.from - a.from);
+  for (const e of edits) out = out.slice(0, e.from) + e.insert + out.slice(e.to);
+  return out;
+}
