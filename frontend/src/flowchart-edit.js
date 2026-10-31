@@ -533,5 +533,166 @@ export function deleteNode(source, id) {
     if (!out.length) removeLine(line);
     else edits.push({ from: line.from, to: line.from + text.length, insert: out.map((o) => indent + o).join("\n") });
   }
+  return tidyPresets(applyEdits(source, edits));
+}
+
+// ------------------------------------------------------------------ styling
+
+/** Ready-made looks, written as `classDef` lines the first time they're used. */
+export const STYLE_PRESETS = [
+  { name: "Mint", fill: "#dcf5ea", stroke: "#3aa676", color: "#14532d" },
+  { name: "Sky", fill: "#e0ecff", stroke: "#4c7bd9", color: "#1e3a8a" },
+  { name: "Rose", fill: "#fde2e4", stroke: "#d9506a", color: "#881337" },
+  { name: "Sand", fill: "#fdf0d5", stroke: "#d49a2a", color: "#78350f" },
+  { name: "Lilac", fill: "#efe4fb", stroke: "#8e5bd0", color: "#4c1d95" },
+  { name: "Forest", fill: "#2f6b4f", stroke: "#1d4634", color: "#ffffff" },
+  { name: "Ink", fill: "#2b2f3a", stroke: "#11141a", color: "#ffffff" },
+  { name: "Slate", fill: "#eceef2", stroke: "#7b8494", color: "#1f2937" },
+];
+const PRESET_BY_NAME = new Map(STYLE_PRESETS.map((p) => [p.name, p]));
+
+/** The `classDef` line for a preset. */
+export function presetClassDef(name) {
+  const p = PRESET_BY_NAME.get(name);
+  return p ? `classDef ${p.name} fill:${p.fill},stroke:${p.stroke},color:${p.color}` : null;
+}
+
+// Body lines after the header, with offsets.
+function afterHeader(source) {
+  const out = [];
+  let seenHeader = false;
+  for (const line of bodyLines(source)) {
+    if (!seenHeader) seenHeader = HEADER_RE.test(line.text);
+    else out.push(line);
+  }
+  return out;
+}
+
+const CLASSDEF_RE = /^\s*classDef\s+([\w-]+(?:\s*,\s*[\w-]+)*)\s+(.*?)\s*;?\s*$/;
+const CLASS_RE = /^(\s*class\s+)([\w-]+(?:\s*,\s*[\w-]+)*)(\s+)([\w-]+)(\s*;?\s*)$/;
+const STYLE_RE = /^(\s*style\s+)([\w-]+)(\s+)(.*?)(\s*;?\s*)$/;
+
+/** Parses `fill:#f00,stroke:#333` into [[key, value], …]. */
+function readProps(text) {
+  return text
+    .split(",")
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((p) => {
+      const i = p.indexOf(":");
+      return i < 0 ? [p, ""] : [p.slice(0, i).trim(), p.slice(i + 1).trim()];
+    });
+}
+
+/** The class names the diagram defines with `classDef`, in order. */
+export function classDefNames(source) {
+  const names = [];
+  for (const line of afterHeader(source)) {
+    const m = CLASSDEF_RE.exec(line.text);
+    if (m) for (const n of m[1].split(",")) if (!names.includes(n.trim())) names.push(n.trim());
+  }
+  return names;
+}
+
+// Where node `id` gets classes: `:::cls` after its tokens, and `class` lines.
+function classUses(source, id) {
+  const uses = [];
+  for (const t of scan(source)) {
+    if (t.id !== id) continue;
+    const at = t.def ? t.def.to : t.to;
+    const m = /^:::([\w-]+)/.exec(source.slice(at));
+    if (m) uses.push({ kind: "inline", from: at, to: at + m[0].length, name: m[1] });
+  }
+  for (const line of afterHeader(source)) {
+    const m = CLASS_RE.exec(line.text);
+    if (!m) continue;
+    const ids = m[2].split(",").map((s) => s.trim());
+    if (ids.includes(id)) uses.push({ kind: "line", line, m, ids, name: m[4] });
+  }
+  return uses;
+}
+
+/** The style class node `id` has (the last one given), or null. */
+export function nodeClass(source, id) {
+  return classUses(source, id).pop()?.name || null;
+}
+
+// Every node that uses class `name`, anywhere.
+function classIsUsed(source, name) {
+  if (new RegExp(`:::${name}(?![\\w-])`).test(source)) return true;
+  return afterHeader(source).some((l) => CLASS_RE.exec(l.text)?.[4] === name);
+}
+
+function removeLineEdit(source, line) {
+  return { from: line.from, to: Math.min(source.length, line.from + line.text.length + 1), insert: "" };
+}
+
+/**
+ * Gives node `id` the style class `name` (null takes its class away). A preset
+ * gets its `classDef` the first time it's used, and nodes sharing a class share
+ * one `class a,b Name` line. Presets nobody uses any more are tidied away.
+ */
+export function setNodeClass(source, id, name) {
+  if (!scan(source).some((t) => t.id === id)) return source;
+  const edits = [];
+  for (const use of classUses(source, id)) {
+    if (use.kind === "inline") edits.push({ from: use.from, to: use.to, insert: "" });
+    else {
+      const kept = use.ids.filter((x) => x !== id);
+      const { line, m } = use;
+      if (!kept.length) edits.push(removeLineEdit(source, line));
+      else edits.push({ from: line.from, to: line.from + line.text.length, insert: `${m[1]}${kept.join(",")}${m[3]}${m[4]}${m[5]}` });
+    }
+  }
+  let out = applyEdits(source, edits);
+  if (name) {
+    if (!classDefNames(out).includes(name) && PRESET_BY_NAME.has(name)) out = appendLine(out, presetClassDef(name));
+    const shared = afterHeader(out).find((l) => CLASS_RE.exec(l.text)?.[4] === name);
+    if (shared) {
+      const m = CLASS_RE.exec(shared.text);
+      out = applyEdits(out, [{ from: shared.from, to: shared.from + shared.text.length, insert: `${m[1]}${m[2]},${id}${m[3]}${m[4]}${m[5]}` }]);
+    } else out = appendLine(out, `class ${id} ${name}`);
+  }
+  return tidyPresets(out);
+}
+
+// Drops preset classDefs (exactly as written by setNodeClass) that nothing uses.
+function tidyPresets(source) {
+  const unused = afterHeader(source).filter((l) => {
+    const m = CLASSDEF_RE.exec(l.text);
+    return m && PRESET_BY_NAME.has(m[1]) && l.text.trim() === presetClassDef(m[1]) && !classIsUsed(source, m[1]);
+  });
+  return applyEdits(source, unused.map((l) => removeLineEdit(source, l)));
+}
+
+/** Node `id`'s own `style` properties, as an object (`{ fill: "#f00" }`). */
+export function nodeStyle(source, id) {
+  const props = {};
+  for (const line of afterHeader(source)) {
+    const m = STYLE_RE.exec(line.text);
+    if (m && m[2] === id) for (const [k, v] of readProps(m[4])) props[k] = v;
+  }
+  return props;
+}
+
+/**
+ * Sets or clears (null/"") properties on node `id`'s `style` line, adding the
+ * line when needed and removing it once it's empty. Values can't hold commas.
+ */
+export function setNodeStyle(source, id, changes) {
+  if (!scan(source).some((t) => t.id === id)) return source;
+  const lines = afterHeader(source).filter((l) => STYLE_RE.exec(l.text)?.[2] === id);
+  const props = new Map(Object.entries(nodeStyle(source, id)));
+  for (const [k, v] of Object.entries(changes)) {
+    const clean = v == null ? "" : String(v).replace(/[,;\n]/g, "").trim();
+    if (clean) props.set(k, clean);
+    else props.delete(k);
+  }
+  const body = [...props].map(([k, v]) => `${k}:${v}`).join(",");
+  if (!lines.length) return body ? appendLine(source, `style ${id} ${body}`) : source;
+  const [first, ...rest] = lines;
+  const m = STYLE_RE.exec(first.text);
+  const edits = rest.map((l) => removeLineEdit(source, l));
+  edits.push(body ? { from: first.from, to: first.from + first.text.length, insert: `${m[1]}${id}${m[3]}${body}${m[5]}` } : removeLineEdit(source, first));
   return applyEdits(source, edits);
 }

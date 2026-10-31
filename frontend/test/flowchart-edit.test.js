@@ -3,6 +3,11 @@ import assert from "node:assert/strict";
 import {
   addConnectedNode,
   addNode,
+  classDefNames,
+  nodeClass,
+  nodeStyle,
+  setNodeClass,
+  setNodeStyle,
   connectNodes,
   deleteNode,
   flowDirection,
@@ -152,4 +157,39 @@ test("deletes a node, its arrows and its styling, keeping its neighbours", () =>
 
 test("won't guess at lines it can't read", () => {
   assert.equal(deleteNode("flowchart TD\n  a --> b ??? c\n", "b"), null);
+});
+
+test("styles a node with a preset class, sharing one class line", () => {
+  let src = "flowchart LR\n    a[A] --> b:::hot --> c\n    classDef hot fill:#f00\n";
+  src = setNodeClass(src, "a", "Rose");
+  src = setNodeClass(src, "c", "Rose");
+  assert.equal(
+    src,
+    "flowchart LR\n    a[A] --> b:::hot --> c\n    classDef hot fill:#f00\n    classDef Rose fill:#fde2e4,stroke:#d9506a,color:#881337\n    class a,c Rose\n",
+  );
+  assert.equal(nodeClass(src, "b"), "hot");
+  assert.deepEqual(classDefNames(src), ["hot", "Rose"]);
+  // Switching b to Rose takes off :::hot; the user's own classDef stays.
+  src = setNodeClass(src, "b", "Rose");
+  assert.match(src, /a\[A\] --> b --> c/);
+  assert.match(src, /class a,c,b Rose/);
+  assert.match(src, /classDef hot/);
+  // Once nobody uses the preset, its classDef goes too.
+  for (const id of ["a", "b", "c"]) src = setNodeClass(src, id, null);
+  assert.equal(src, "flowchart LR\n    a[A] --> b --> c\n    classDef hot fill:#f00\n");
+});
+
+test("sets and clears a node's own style properties", () => {
+  let src = "flowchart TD\n  a --> b\n";
+  src = setNodeStyle(src, "a", { fill: "#fff", stroke: "#000" });
+  assert.equal(src, "flowchart TD\n  a --> b\n  style a fill:#fff,stroke:#000\n");
+  src = setNodeStyle(src, "a", { fill: null, "stroke-dasharray": "6 4" });
+  assert.deepEqual(nodeStyle(src, "a"), { stroke: "#000", "stroke-dasharray": "6 4" });
+  src = setNodeStyle(src, "a", { stroke: "", "stroke-dasharray": null });
+  assert.equal(src, "flowchart TD\n  a --> b\n");
+});
+
+test("deleting the last node with a preset removes its classDef", () => {
+  const src = setNodeClass("flowchart TD\n  a --> b\n", "b", "Sky");
+  assert.equal(deleteNode(src, "b"), "flowchart TD\n  a\n");
 });
